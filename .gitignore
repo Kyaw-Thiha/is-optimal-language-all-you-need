@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Virtual environments & local tooling
+.venv/
+venv/
+.env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+
+# Editors
+.vscode/
+.idea/
+
+# Data & outputs
+data/
+reports/
+
+# Notebooks
+*.ipynb_checkpoints/
