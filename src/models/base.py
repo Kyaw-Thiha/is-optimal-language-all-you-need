@@ -21,7 +21,27 @@ from .registry import ModelSpec
 
 @dataclass
 class ModelOutputs:
-    """Standardized output payload returned by a model forward pass."""
+    """Standardized output payload returned by a model forward pass.
+
+    Attributes
+    ----------
+    input_ids:
+        Token IDs fed into the model (batch_size × seq_len).
+    attention_mask:
+        Mask used during the forward pass (1 for active tokens, 0 for padding).
+    logits:
+        Final-layer logits when the checkpoint exposes a language-model head;
+        `None` for encoders without heads (e.g., LaBSE).
+    encoder_hidden_states:
+        Tuple of hidden-state tensors for encoder stacks; index 0 is the embedding
+        layer. Present for encoder-only and seq2seq models.
+    decoder_hidden_states:
+        Tuple of hidden-state tensors for decoder stacks (embedding at index 0);
+        populated for decoder-only and seq2seq models.
+    extra:
+        Optional dictionary carrying auxiliary outputs (e.g., attention weights,
+        pooled outputs, cross-attention maps).
+    """
 
     input_ids: torch.Tensor
     attention_mask: Optional[torch.Tensor]

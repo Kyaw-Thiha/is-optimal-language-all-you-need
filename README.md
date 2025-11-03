@@ -46,7 +46,7 @@ project-root/
 - `notebooks/`: Landing zone for exploratory analysis or sanity checks authored in Jupyter (because someone always will).
 - `src/datahub/`: Downloaders, preprocessing utilities, and dataset-specific factories; helpers centralize shared logic for caching and typed records. See `src/datahub/README.md` for usage details and sample payloads.
 - `src/metrics/`: Metric implementations grouped by role; `base.py` provides the interface consumed by the evaluator, while the other modules house core, supporting, and explanatory metrics.
-- `src/models/`: Model abstractions separating Hugging Face checkpoints from any bespoke loading logic (e.g., Meta-gated models).
+- `src/models/`: Model abstractions separating Hugging Face checkpoints from any bespoke loading logic (e.g., Meta-gated models). See `src/models/README.md` for runner details and examples.
 - `tests/`: Unit and integration tests covering loaders, metrics, and experiment orchestration.
 ## Unified Sample Representation
 
@@ -93,4 +93,22 @@ SenseSample(
 )
 ```
 
-The `SenseSample` schema lets loaders, probes, and metrics operate on one consistent iterator across XL-WSD (span-level sense tags) and WiC-style datasets (binary “same sense” judgements). Use `src/datahub.preprocess` to generate the records and `src/datahub.loader.load_preprocessed` to stream them back for experimentation.*** End Patch
+The `SenseSample` schema lets loaders, probes, and metrics operate on one consistent iterator across XL-WSD (span-level sense tags) and WiC-style datasets (binary "same sense" judgements). 
+Use `src/datahub.preprocess` to generate the records and `src/datahub.loader.load_preprocessed` to stream them back for experimentation.
+
+## Model Factory Quickstart
+
+```python
+from models import load_model
+
+runner = load_model("llama3", device="cuda:0")
+batch = runner.tokenize(["He deposited the check at the bank."])
+outputs = runner.forward(batch)
+
+hidden_states = outputs.decoder_hidden_states  # layer 0 = embeddings
+logits = outputs.logits                         # final token logits
+```
+
+Call `load_model` with any registry key (see `src/models/README.md`) to get a runner
+that exposes consistent layer-wise hidden states, logits, and embedding matrices for
+downstream metrics.
