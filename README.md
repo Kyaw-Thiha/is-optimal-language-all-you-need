@@ -1,6 +1,43 @@
 # Is Optimal Language All You Need?
 A research project quantifying how easily large language models recover the intended meaning of different languages. 
 
+## Helpful Commands
+### Installation
+
+```shell
+python -m venv .venv
+source .venv/bin/activate
+pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+Choose your preferred virtual environment manager (venv, conda, poetry); the above is
+the minimal workflow using Python’s built-in venv.
+
+### Running Commands
+
+The CLI lives in `main.py` and uses Typer. Once dependencies are installed, you can
+invoke commands as follows:
+
+```shell
+python main.py dataset       # download & preprocess datasets
+python main.py infer         # temporary stub; will grow with additional options
+```
+
+Additional commands will be added over time—`python main.py --help` shows the latest
+set.
+
+### Tests
+
+The project ships with pytest suites for the data hub and model runners. Execute them
+after installation:
+
+```shell
+pytest
+```
+
+Tests run offline thanks to local fixtures and monkeypatched Hugging Face loaders.
+
 ## Project Layout
 
 ```
@@ -112,3 +149,4 @@ logits = outputs.logits                         # final token logits
 Call `load_model` with any registry key (see `src/models/README.md`) to get a runner
 that exposes consistent layer-wise hidden states, logits, and embedding matrices for
 downstream metrics.
+
