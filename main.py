@@ -1,9 +1,8 @@
-import os
 import typer
-import numpy as np
 from InquirerPy import inquirer
 
 from src.datahub import download_datasets, preprocess_datasets
+from src.models import load_model
 
 app = typer.Typer()
 
@@ -12,6 +11,15 @@ app = typer.Typer()
 def dataset():
     download_datasets()
     preprocess_datasets()
+
+
+@app.command()
+def infer(model: str = "", text: str = ""):
+    runner = load_model("llama3", device="cuda:0")
+    batch = runner.tokenize(["Merhaba dünya"])
+    outputs = runner.forward(batch)
+
+    return outputs
 
 
 if __name__ == "__main__":
