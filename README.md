@@ -82,7 +82,7 @@ project-root/
 - `experiments/`: Scripts or notebooks that assemble full benchmark runs using the configs.
 - `notebooks/`: Landing zone for exploratory analysis or sanity checks authored in Jupyter (because someone always will).
 - `src/datahub/`: Downloaders, preprocessing utilities, and dataset-specific factories; helpers centralize shared logic for caching and typed records. See `src/datahub/README.md` for usage details and sample payloads.
-- `src/embeddings/`: Sentence/span pooling utilities and caching hooks that convert `SenseSample`s into frozen feature tensors for probing.
+- `src/embeddings/`: Pooling helpers (token spans, sentences, sentence pairs) plus an optional cache for reusing frozen embeddings.
 - `src/probes/`: Implementations of the probe families (linear, MLP, k-NN, Fisher discriminant) built on a shared training/evaluation scaffold.
 - `src/metrics/`: Metric implementations grouped by role with a registry that connects probe outputs to DDI, separability, and other scores.
 - `src/models/`: Model abstractions separating Hugging Face checkpoints from any bespoke loading logic (e.g., Meta-gated models). See `src/models/README.md` for runner details and examples.
