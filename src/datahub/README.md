@@ -30,6 +30,9 @@ class SenseSample:
 ## Example Records
 
 ### XL-WSD
+
+Supported languages (18): English (en), Arabic (ar), Bulgarian (bg), Catalan (ca), Czech (cs), Danish (da), German (de), Greek (el), Spanish (es), Estonian (et), Basque (eu), Finnish (fi), French (fr), Italian (it), Dutch (nl), Polish (pl), Portuguese (pt), Swedish (sv)
+
 ```python
 SenseSample(
     sample_id="xlwsd-test-04217",
@@ -46,6 +49,9 @@ SenseSample(
 ```
 
 ### XL-WiC
+
+Supported languages (12): English (en), Bulgarian (bg), German (de), Greek (el), Spanish (es), French (fr), Italian (it), Croatian (hr), Romanian (ro), Russian (ru), Turkish (tr), Chinese (zh)
+
 ```python
 SenseSample(
     sample_id="xlwic-validation-1180",
@@ -62,6 +68,9 @@ SenseSample(
 ```
 
 ### MCL-WiC
+
+Supported languages (46): Afrikaans (af), Amharic (am), Arabic (ar), Bulgarian (bg), Bengali (bn), German (de), Greek (el), English (en), Spanish (es), Estonian (et), Persian (fa), Finnish (fi), French (fr), Hebrew (he), Hindi (hi), Croatian (hr), Hungarian (hu), Indonesian (id), Italian (it), Japanese (ja), Georgian (ka), Kazakh (kk), Korean (ko), Lithuanian (lt), Macedonian (mk), Malay (ms), Burmese (my), Dutch (nl), Norwegian (no), Polish (pl), Portuguese (pt), Romanian (ro), Russian (ru), Sinhala (si), Slovak (sk), Slovenian (sl), Swahili (sw), Tamil (ta), Thai (th), Turkish (tr), Ukrainian (uk), Urdu (ur), Vietnamese (vi), Xhosa (xh), Yoruba (yo), Chinese (zh), Zulu (zu)
+
 ```python
 SenseSample(
     sample_id="mclwic-train-207",
@@ -77,4 +86,4 @@ SenseSample(
 )
 ```
 
-Each record supplies enough context for both span-based probes (via `target_span` and `sense_tag`) and sentence-pair classification (via `text_b` and `same_sense`). Metrics can operate on a single iterator of `SenseSample`s without worrying about the original dataset format.*** End Patch
+Each record supplies enough context for both span-based probes (via `target_span` and `sense_tag`) and sentence-pair classification (via `text_b` and `same_sense`). Metrics can operate on a single iterator of `SenseSample`s without worrying about the original dataset format.
