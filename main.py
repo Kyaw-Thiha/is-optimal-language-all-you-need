@@ -3,7 +3,7 @@ from InquirerPy import inquirer
 
 from src.datahub import download_datasets, preprocess_datasets
 from src.models import load_model, ModelKey
-from experiments.ddi import run_ddi_xlwsd
+from experiments.ddi_xlwsd import run_ddi_xlwsd
 from experiments.plots import plot_language_ddi, plot_language_traces
 
 app = typer.Typer()
