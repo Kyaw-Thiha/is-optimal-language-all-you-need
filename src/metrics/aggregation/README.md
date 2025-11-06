@@ -51,3 +51,24 @@ After fitting the hierarchical model we sample from the posterior. A typical sum
 ```
 
 `posterior_mean` is the shrinkage-adjusted language estimate; the highest-density interval (HDI) columns show our uncertainty. Lemma-level posteriors are available too (`μ_language + β_lemma`) if we need smoothed per-lemma scores.
+
+## Using the Aggregator
+
+1. Gather lemma metrics into `LemmaMetricRecord` objects—usually by looping over probe outputs and logging the metric value, lemma, and language.
+2. Call `aggregate_language_scores(records, draws=..., tune=...)` for a one-shot run, or construct `HierarchicalAggregator` directly if you want to reuse the fitted posterior.
+3. The result is a list of `LanguageSummary` instances containing the posterior mean and highest-density interval for each language.
+
+```python
+from src.metrics.aggregation import LemmaMetricRecord, aggregate_language_scores
+
+records = [
+    LemmaMetricRecord(language="en", lemma="bank", metric="ddi", value=6.0),
+    LemmaMetricRecord(language="en", lemma="cell", metric="ddi", value=5.3),
+    LemmaMetricRecord(language="tr", lemma="düşmek", metric="ddi", value=4.2),
+]
+
+summaries = aggregate_language_scores(records, draws=1000, tune=500)
+for summary in summaries:
+    print(summary.language, summary.mean, summary.lower, summary.upper)
+```
+
