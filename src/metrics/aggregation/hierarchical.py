@@ -26,6 +26,7 @@ class HierarchicalAggregator:
         chains: int = 4,
         cores: Optional[int] = None,
         credible_interval: float = 0.90,
+        random_seed: Optional[int] = None,
     ) -> None:
         self.priors = priors or PriorConfig()
         self.draws = draws
@@ -34,6 +35,7 @@ class HierarchicalAggregator:
         self.chains = chains
         self.cores = cores
         self.credible_interval = credible_interval
+        self.random_seed = random_seed
         self._idata: Optional[InferenceData] = None
         self._language_labels: Sequence[str] = ()
         self._metric_name: Optional[str] = None
@@ -49,6 +51,7 @@ class HierarchicalAggregator:
                 target_accept=self.target_accept,
                 chains=self.chains,
                 cores=self.cores,
+                random_seed=self.random_seed,
                 return_inferencedata=True,
                 progressbar=False,
             )
@@ -68,10 +71,22 @@ class HierarchicalAggregator:
 
         posterior = cast(xr.Dataset, posterior_group)["mu_language"]
         mean_da = cast(xr.DataArray, posterior.mean(dim=("chain", "draw")))
-        hdi_da = cast(xr.DataArray, az.hdi(posterior, hdi_prob=self.credible_interval))
+        hdi = az.hdi(posterior, hdi_prob=self.credible_interval)
+
+        if isinstance(hdi, xr.Dataset):
+            if "mu_language" in hdi:
+                hdi = hdi["mu_language"]
+            else:
+                hdi = hdi.to_array().squeeze()
+                if "variable" in hdi.dims:
+                    hdi = hdi.isel(variable=0, drop=True)
+        hdi_da = cast(xr.DataArray, hdi)
 
         means = np.asarray(mean_da, dtype=float)
-        interval = np.asarray(hdi_da, dtype=float)
+        lower = np.asarray(hdi_da.sel(hdi="lower"), dtype=float)
+        upper = np.asarray(hdi_da.sel(hdi="higher"), dtype=float)
+        interval = np.stack([lower, upper], axis=1)
+
         if means.ndim != 1 or interval.ndim != 2 or interval.shape[1] != 2:
             raise RuntimeError("Unexpected posterior shape when summarising language means.")
         if len(self._language_labels) != means.shape[0]:

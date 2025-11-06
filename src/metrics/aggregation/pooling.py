@@ -17,6 +17,7 @@ def aggregate_language_scores(
     chains: int = 4,
     cores: int | None = None,
     credible_interval: float = 0.90,
+    random_seed: int | None = None,
 ) -> Sequence[LanguageSummary]:
     """Fit the hierarchical model and return language summaries in one call."""
     aggregator = HierarchicalAggregator(
@@ -27,6 +28,7 @@ def aggregate_language_scores(
         chains=chains,
         cores=cores,
         credible_interval=credible_interval,
+        random_seed=random_seed,
     )
     aggregator.fit(records)
     return aggregator.summaries()
