@@ -147,6 +147,23 @@ first = samples[0]
 print(first.language, first.lemma, first.sense_tag)
 ```
 
+### Models (`src.models`)
+
+```python
+from src.models import load_model
+
+runner = load_model("llama3", device="cuda:0")
+batch = runner.tokenize(["He deposited the check at the bank."])
+outputs = runner.forward(batch)
+
+hidden_states = outputs.decoder_hidden_states  # layer 0 = embeddings
+logits = outputs.logits                         # final token logits
+```
+
+Call `load_model` with any registry key (see `src/models/README.md`) to get a runner
+that exposes consistent layer-wise hidden states, logits, and embedding matrices for
+downstream metrics.
+
 ### Embeddings (`src.embeddings`)
 
 ```python
@@ -190,19 +207,3 @@ records = [
 summaries = aggregate_language_scores(records, draws=200, tune=200, chains=2, cores=1)
 ```
 
-### Models (`src.models`)
-
-```python
-from src.models import load_model
-
-runner = load_model("llama3", device="cuda:0")
-batch = runner.tokenize(["He deposited the check at the bank."])
-outputs = runner.forward(batch)
-
-hidden_states = outputs.decoder_hidden_states  # layer 0 = embeddings
-logits = outputs.logits                         # final token logits
-```
-
-Call `load_model` with any registry key (see `src/models/README.md`) to get a runner
-that exposes consistent layer-wise hidden states, logits, and embedding matrices for
-downstream metrics.
