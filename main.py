@@ -3,6 +3,7 @@ from InquirerPy import inquirer
 
 from src.datahub import download_datasets, preprocess_datasets
 from src.models import load_model
+from experiments.ddi import run_ddi_xlwsd
 
 app = typer.Typer()
 
@@ -11,6 +12,11 @@ app = typer.Typer()
 def dataset():
     download_datasets()
     preprocess_datasets()
+
+
+@app.command()
+def ddi_xlwsd():
+    run_ddi_xlwsd("minilm")
 
 
 @app.command()
