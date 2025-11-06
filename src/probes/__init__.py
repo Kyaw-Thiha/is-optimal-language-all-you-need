@@ -1,6 +1,6 @@
 """Probe implementations and helpers."""
 
-from .base import ArrayLike, BaseProbe, LabelLike, ProbeTrainingReport, WeightsLike
+from .base import ArrayLike, BaseProbe, LabelLike, WeightsLike
 from .linear import LinearProbe, LinearProbeConfig
 
 __all__ = [
