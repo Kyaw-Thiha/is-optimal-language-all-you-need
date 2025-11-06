@@ -4,17 +4,15 @@ from typing import Dict, List, Tuple, cast
 import numpy as np
 from torch import Tensor
 
-import pandas as pd
-import plotly.express as px
-
 from src.datahub.loader import load_preprocessed
-from src.metrics.aggregation.records import LanguageSummary
 from src.models import load_model, ModelKey
 from src.embeddings.token import Span, pool_token_embeddings
 from src.probes.linear import LinearProbe, LinearProbeConfig
 from src.metrics.ddi import compute_ddi, DDIConfig
 from src.metrics.ddi_policy import FixedThresholdPolicy
 from src.metrics.aggregation import LemmaMetricRecord, aggregate_language_scores
+
+LemmaTraces = Dict[str, Dict[str, Dict[int, float]]]  # language -> lemma -> layer -> score
 
 
 def run_ddi_xlwsd(model_name: ModelKey, device: str = "cuda:0"):
@@ -34,6 +32,7 @@ def run_ddi_xlwsd(model_name: ModelKey, device: str = "cuda:0"):
     for idx, sample in enumerate(samples):
         buckets[(sample.language, sample.lemma)].append(idx)
 
+    lemma_traces: LemmaTraces = defaultdict(lambda: defaultdict(dict))
     records: list[LemmaMetricRecord] = []
     for (language, lemma), indices in buckets.items():
         # Building the labels
@@ -52,7 +51,7 @@ def run_ddi_xlwsd(model_name: ModelKey, device: str = "cuda:0"):
         for layer_idx, hidden_state in enumerate(layers):
             # Building the features
             layer_lemma = hidden_state[indices]
-            features = pool_token_embeddings(hidden_state, target_spans, "mean")
+            features = pool_token_embeddings(layer_lemma, target_spans, "mean")
 
             # Carrying out the linear probing
             probe = LinearProbe(LinearProbeConfig(max_iter=200))
@@ -62,6 +61,7 @@ def run_ddi_xlwsd(model_name: ModelKey, device: str = "cuda:0"):
             # Getting the score
             score = (predicted == labels).mean()
             lemma_scores[layer_idx] = score
+        lemma_traces[language][lemma] = lemma_scores
 
         ddi = compute_ddi(lemma_scores, config=DDIConfig(threshold_policy=FixedThresholdPolicy(0.7)))
         if ddi.layer is not None:
@@ -83,28 +83,5 @@ def run_ddi_xlwsd(model_name: ModelKey, device: str = "cuda:0"):
         cores=1,
         random_seed=123,
     )
-    plot_language_ddi(list(summaries), model_name)
 
-
-def plot_language_ddi(summaries: list[LanguageSummary], model_name: ModelKey) -> None:
-    df = pd.DataFrame(
-        {
-            "language": [s.language for s in summaries],
-            "ddi_mean": [s.mean for s in summaries],
-            "ddi_lower": [s.lower for s in summaries],
-            "ddi_upper": [s.upper for s in summaries],
-        }
-    ).sort_values("ddi_mean")  # lower DDI → earlier disambiguation
-
-    fig = px.bar(
-        df,
-        x="ddi_mean",
-        y="language",
-        orientation="h",
-        error_x=df["ddi_upper"] - df["ddi_mean"],
-        error_x_minus=df["ddi_mean"] - df["ddi_lower"],
-        title=f"{model_name} – XL-WSD DDI per language",
-        labels={"ddi_mean": "DDI (lower = earlier sense resolution)", "language": "Language"},
-    )
-    fig.update_layout(xaxis=dict(rangemode="tozero"))
-    fig.show()
+    return summaries, lemma_traces, records

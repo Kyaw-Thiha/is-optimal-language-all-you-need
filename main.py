@@ -2,8 +2,9 @@ import typer
 from InquirerPy import inquirer
 
 from src.datahub import download_datasets, preprocess_datasets
-from src.models import load_model
+from src.models import load_model, ModelKey
 from experiments.ddi import run_ddi_xlwsd
+from experiments.plots import plot_language_ddi, plot_language_traces
 
 app = typer.Typer()
 
@@ -16,7 +17,14 @@ def dataset():
 
 @app.command()
 def ddi_xlwsd():
-    run_ddi_xlwsd("minilm")
+    model_name: ModelKey = "minilm"
+    summaries, lemma_traces, records = run_ddi_xlwsd(model_name)
+
+    # Plotting summary of all languages
+    plot_language_ddi(summaries, model_name)
+
+    # Plotting per language traces
+    plot_language_traces(lemma_traces, model_name)
 
 
 @app.command()
