@@ -17,7 +17,7 @@ LemmaTraces = Dict[str, Dict[str, Dict[int, float]]]  # language -> lemma -> lay
 
 def run_ddi_xlwsd(model_name: ModelKey, device: str = "cuda:0"):
     samples = list(load_preprocessed("xlwsd", split="validation"))
-    model = load_model(model_name, device="cuda:0")
+    model = load_model(model_name, device=device)
     batch = model.tokenize([sample.text_a for sample in samples])
     outputs = model.forward(batch)
 
@@ -34,14 +34,18 @@ def run_ddi_xlwsd(model_name: ModelKey, device: str = "cuda:0"):
 
     lemma_traces: LemmaTraces = defaultdict(lambda: defaultdict(dict))
     records: list[LemmaMetricRecord] = []
+
     for (language, lemma), indices in buckets.items():
+        # Sampling out the current lemma
+        lemma_samples = [samples[i] for i in indices]
+
         # Building the labels
-        sense_tags = [cast(str, sample.sense_tag) for sample in samples]
+        sense_tags = [cast(str, sample.sense_tag) for sample in lemma_samples]
         label_map = {tag: idx for idx, tag in enumerate(sorted(set(sense_tags)))}
         labels = np.asarray([label_map[tag] for tag in sense_tags], dtype=int)
 
         # Building the spans
-        target_spans = [sample.target_span for sample in samples]
+        target_spans = [sample.target_span for sample in lemma_samples]
         if any(span is None for span in target_spans):
             raise ValueError("XL-WSD spans should all be present.")
         target_spans = cast(List[Span], target_spans)
