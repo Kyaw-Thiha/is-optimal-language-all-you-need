@@ -135,10 +135,65 @@ SenseSample(
 The `SenseSample` schema lets loaders, probes, and metrics operate on one consistent iterator across XL-WSD (span-level sense tags) and WiC-style datasets (binary "same sense" judgements). 
 Use `src/datahub.preprocess` to generate the records and `src/datahub.loader.load_preprocessed` to stream them back for experimentation.
 
-## Model Factory Quickstart
+## Module Quickstarts
+
+### DataHub (`src.datahub`)
 
 ```python
-from models import load_model
+from src.datahub.loader import load_preprocessed
+
+samples = list(load_preprocessed("xlwsd", split="validation"))
+first = samples[0]
+print(first.language, first.lemma, first.sense_tag)
+```
+
+### Embeddings (`src.embeddings`)
+
+```python
+from src.embeddings.token import pool_token_embeddings
+
+hidden_states = model_outputs.hidden_states[layer]  # torch.Tensor
+token_spans = [(0, 1) for _ in samples]             # dummy span indices
+features = pool_token_embeddings(hidden_states, token_spans, strategy="mean")
+```
+
+### Probes (`src.probes`)
+
+```python
+from src.probes.linear import LinearProbe, LinearProbeConfig
+
+probe = LinearProbe(LinearProbeConfig(max_iter=200))
+probe.fit(features, labels)
+predicted = probe.predict(features)
+```
+
+### Metrics (`src.metrics`)
+
+```python
+from src.metrics.ddi import compute_ddi, DDIConfig
+from src.metrics.ddi_policy import FixedThresholdPolicy
+
+scores = {layer: value for layer, value in enumerate(layer_trace)}
+ddi = compute_ddi(scores, DDIConfig(threshold_policy=FixedThresholdPolicy(0.7)))
+print(ddi.layer, ddi.threshold)
+```
+
+### Aggregation (`src.metrics.aggregation`)
+
+```python
+from src.metrics.aggregation import LemmaMetricRecord, aggregate_language_scores
+
+records = [
+    LemmaMetricRecord(language="en", lemma="bank", metric="ddi", value=6.1),
+    LemmaMetricRecord(language="tr", lemma="düşmek", metric="ddi", value=4.9),
+]
+summaries = aggregate_language_scores(records, draws=200, tune=200, chains=2, cores=1)
+```
+
+### Models (`src.models`)
+
+```python
+from src.models import load_model
 
 runner = load_model("llama3", device="cuda:0")
 batch = runner.tokenize(["He deposited the check at the bank."])
