@@ -8,7 +8,7 @@ from .base import BaseModelRunner
 from .decoder_only import DecoderModelRunner
 from .encoder_only import EncoderModelRunner
 from .helpers import DeviceLike
-from .registry import ArchType, ModelSpec, REGISTRY, get_spec
+from .registry import ArchType, ModelKey, ModelSpec, REGISTRY, get_spec
 from .seq2seq import Seq2SeqModelRunner
 
 RunnerClass = Type[BaseModelRunner]
@@ -21,7 +21,7 @@ RUNNERS: dict[ArchType, RunnerClass] = {
 
 
 def load_model(
-    spec_key: str,
+    spec_key: ModelKey,
     device: DeviceLike = "cpu",
     capture_attentions: bool = False,
     tokenizer_kwargs: Optional[dict[str, object]] = None,

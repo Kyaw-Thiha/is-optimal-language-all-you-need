@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from typing import Literal, Optional
 
 ArchType = Literal["encoder_only", "decoder_only", "seq2seq"]
+ModelKey = Literal["mbert", "xlmr", "mt5", "llama3", "labse", "minilm"]
 
 
 @dataclass(frozen=True)
@@ -26,7 +27,7 @@ class ModelSpec:
     tokenizer_kwargs: Optional[dict[str, object]] = None
 
 
-REGISTRY: dict[str, ModelSpec] = {
+REGISTRY: dict[ModelKey, ModelSpec] = {
     "mbert": ModelSpec(
         name="mbert",
         hf_id="bert-base-multilingual-cased",
@@ -67,7 +68,7 @@ REGISTRY: dict[str, ModelSpec] = {
 }
 
 
-def get_spec(key: str) -> ModelSpec:
+def get_spec(key: ModelKey) -> ModelSpec:
     """Return the ModelSpec registered under ``key``."""
     try:
         return REGISTRY[key]

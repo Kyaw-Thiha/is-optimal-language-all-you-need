@@ -64,7 +64,7 @@ cross-attention weights inside `extra`.
 ## Usage
 
 ```python
-from models import load_model
+from src.models import load_model
 
 runner = load_model("xlmr", device="cuda:0")
 batch = runner.tokenize(["He deposited the check at the bank."])
