@@ -61,7 +61,7 @@ def pool_sentence_embeddings(
 
     if strategy == "mean":
         mask = attention_mask.to(hidden_states.dtype).unsqueeze(-1)
-        token_counts = mask.sum(dim=1, keepdim=True).clamp_min(1.0)
+        token_counts = mask.sum(dim=1).clamp_min(1.0)
         weighted = hidden_states * mask
         return weighted.sum(dim=1) / token_counts
 
