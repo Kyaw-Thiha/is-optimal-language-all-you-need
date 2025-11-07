@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from math import ceil
-from typing import Iterable, List, Sequence
+from typing import Iterable, Iterator, List, Sequence
 
 import torch
 import torch.nn.functional as F
@@ -30,15 +30,19 @@ class HiddenStateExtractor:
         self.batch_size = batch_size
         self.to_cpu = to_cpu
 
+    def iterate(self, texts: Sequence[str], *, desc: str = "Forward pass") -> Iterator[ForwardBatch]:
+        iterator = self._iterate_batches(texts)
+        total = ceil(len(texts) / self.batch_size) if texts else 0
+        for chunk in tqdm(iterator, total=total, desc=desc, leave=False):
+            yield chunk
+
     def run(self, texts: Sequence[str]) -> List[torch.Tensor]:
         """Return concatenated hidden states for every layer."""
 
         buffers: List[List[torch.Tensor]] = []
         max_seq_len = 0
 
-        iterator = self._iterate_batches(texts)
-        total = ceil(len(texts) / self.batch_size) if texts else 0
-        for chunk in tqdm(iterator, total=total, desc="Forward pass", leave=False):
+        for chunk in self.iterate(texts):
             if not buffers:
                 buffers = [[] for _ in range(len(chunk.hidden_states))]
             if chunk.hidden_states:

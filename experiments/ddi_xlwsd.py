@@ -1,8 +1,8 @@
 from collections import defaultdict
-from typing import Dict, List, Tuple, cast
+from typing import Dict, List, Optional, Tuple, cast
 
 import numpy as np
-from torch import Tensor
+import torch
 from tqdm import tqdm
 
 from src.datahub.loader import load_preprocessed
@@ -23,8 +23,6 @@ def run_ddi_xlwsd(model_name: ModelKey, device: str = "cuda:0", batch_size: int 
     print(f"[ddi] Loaded {len(samples)} samples; starting forward pass with batch size {batch_size}.")
     model = load_model(model_name, device=device)
     extractor = HiddenStateExtractor(model, batch_size=batch_size, to_cpu=True)
-    layers = extractor.run([sample.text_a for sample in samples])
-    print(f"[ddi] Forward pass complete; cached {len(layers)} layers on CPU.")
 
     # bucket samples by (language, lemma)
     print("[ddi] Starting lemma bucketing.")
@@ -33,40 +31,81 @@ def run_ddi_xlwsd(model_name: ModelKey, device: str = "cuda:0", batch_size: int 
         buckets[(sample.language, sample.lemma)].append(idx)
     print(f"[ddi] Bucketing complete; {len(buckets)} language/lemma pairs to probe.")
 
+    # Pre-compute labels/spans for each lemma and remember how to map sample idx -> lemma slot.
+    labels_by_lemma: Dict[Tuple[str, str], np.ndarray] = {}
+    feature_buffers: Dict[Tuple[str, str], List[List[Optional[torch.Tensor]]]] = {}
+    sample_lookup: Dict[int, Tuple[Tuple[str, str], int]] = {}
+
+    for key, indices in buckets.items():
+        lemma_samples = [samples[i] for i in indices]
+        sense_tags = [cast(str, sample.sense_tag) for sample in lemma_samples]
+        label_map = {tag: idx for idx, tag in enumerate(sorted(set(sense_tags)))}
+        labels = np.asarray([label_map[tag] for tag in sense_tags], dtype=int)
+        target_spans = [sample.target_span for sample in lemma_samples]
+
+        if any(span is None for span in target_spans):
+            raise ValueError("XL-WSD spans should all be present.")
+
+        labels_by_lemma[key] = labels
+        for pos, sample_idx in enumerate(indices):
+            sample_lookup[sample_idx] = (key, pos)
+
+    texts = [sample.text_a for sample in samples]
+    layer_count: int | None = None
+
+    # Stream batches through the model so only one batch touches GPU memory at a time.
+    for chunk in extractor.iterate(texts):
+        if layer_count is None:
+            layer_count = len(chunk.hidden_states)
+            print(f"[ddi] Forward pass complete; streaming features across {layer_count} layers.")
+            for key, labels in labels_by_lemma.items():
+                length = len(labels)
+                feature_buffers[key] = [[None] * length for _ in range(layer_count)]
+
+        # Gather the target spans for this chunk (they stay on CPU).
+        chunk_spans: List[Span] = []
+        for idx in chunk.indices:
+            span = samples[idx].target_span
+            if span is None:
+                raise ValueError("XL-WSD spans should all be present.")
+            chunk_spans.append(cast(Span, span))
+
+        # Pool span embeddings layer by layer and stash them in the lemma buffers.
+        for layer_idx, layer_tensor in enumerate(chunk.hidden_states):
+            pooled = pool_token_embeddings(layer_tensor, chunk_spans, "mean")
+            for local_pos, global_idx in enumerate(chunk.indices):
+                lemma_key, slot = sample_lookup[global_idx]
+                feature_buffers[lemma_key][layer_idx][slot] = pooled[local_pos]
+
+    if layer_count is None:
+        raise RuntimeError("No layers extracted from the model; aborting DDI run.")
+
+    # Stack per-layer features for each lemma once everything has streamed through.
+    features_by_lemma: Dict[Tuple[str, str], List[torch.Tensor]] = {}
+    for key, layer_slots in feature_buffers.items():
+        stacked_layers = []
+        for layer_idx, slot_values in enumerate(layer_slots):
+            if any(value is None for value in slot_values):
+                raise RuntimeError(f"Missing pooled features for {key} layer {layer_idx}.")
+            stacked_layers.append(torch.stack(cast(List[torch.Tensor], slot_values), dim=0))
+        features_by_lemma[key] = stacked_layers
+
     lemma_traces: LemmaTraces = defaultdict(lambda: defaultdict(dict))
     records: list[LemmaMetricRecord] = []
 
     print("[ddi] Starting lemma probing loop.")
-    for (language, lemma), indices in tqdm(buckets.items(), desc="Probing lemmas"):
-        # Sampling out the current lemma
-        lemma_samples = [samples[i] for i in indices]
-
-        # Building the labels
-        sense_tags = [cast(str, sample.sense_tag) for sample in lemma_samples]
-        label_map = {tag: idx for idx, tag in enumerate(sorted(set(sense_tags)))}
-        labels = np.asarray([label_map[tag] for tag in sense_tags], dtype=int)
-
-        # Building the spans
-        target_spans = [sample.target_span for sample in lemma_samples]
-        if any(span is None for span in target_spans):
-            raise ValueError("XL-WSD spans should all be present.")
-        target_spans = cast(List[Span], target_spans)
-
+    for (language, lemma), labels in tqdm(labels_by_lemma.items(), desc="Probing lemmas"):
+        layer_features = features_by_lemma[(language, lemma)]
         lemma_scores: Dict[int, float] = {}
 
-        for layer_idx, hidden_state in enumerate(layers):
-            # Building the features
-            layer_lemma = hidden_state[indices]
-            features = pool_token_embeddings(layer_lemma, target_spans, "mean")
-
-            # Carrying out the linear probing
+        for layer_idx, features_tensor in enumerate(layer_features):
+            features = features_tensor.numpy()
             probe = LinearProbe(LinearProbeConfig(max_iter=200))
             probe.fit(features, labels)
             predicted = probe.predict(features)
-
-            # Getting the score
             score = (predicted == labels).mean()
             lemma_scores[layer_idx] = score
+
         lemma_traces[language][lemma] = lemma_scores
 
         ddi = compute_ddi(lemma_scores, config=DDIConfig(threshold_policy=FixedThresholdPolicy(0.7)))
