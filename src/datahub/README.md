@@ -4,18 +4,21 @@ This package houses the data-facing building blocks for the project—everything
 
 ## Modules
 
-- `download.py`: Pulls XL-WSD, XL-WiC, and MCL-WiC from Hugging Face and mirrors them under `data/raw/{dataset}`.
+- `datasets/`: Download helpers plus archive parsers for XL-WSD, XL-WiC, and MCL-WiC.
 - `preprocess.py`: Converts each raw dataset into the shared `SenseSample` representation, saving splits to `data/preprocess/{dataset}/{split}`.
-- `helpers.py`: Shared utilities (e.g., robust type coercions, mapping guards) used across download/preprocess/load flows.
+- `helpers.py`: Shared utilities (e.g., robust type coercions, mapping guards) used across preprocess/load flows.
 - `loader.py`: Reads preprocessed splits from disk and yields `SenseSample` objects for downstream metrics.
 - `sense_sample.py`: Defines the `SenseSample` dataclass—our minimal, task-agnostic view of a sense instance.
 
-## Accessing Hugging Face Corpora
+## Source Archives
 
-XL-WSD and XL-WiC are hosted on gated Hugging Face datasets. Visit their pages, accept
-the terms, and run `huggingface-cli login` (or export `HF_TOKEN`) before calling
-`download.py` or the top-level `python main.py dataset` command. Otherwise the Hub will
-reject the request with `DatasetNotFoundError`.
+The data hub operates entirely on local archives:
+
+- **XL-WSD**: downloaded from the Sapienza/BabelNet Google Drive release (accept their license before running the command).
+- **XL-WiC**: mirrored from the official EMNLP 2020 release (`xlwic_datasets.zip`).
+- **MCL-WiC**: fetched from the SemEval GitHub repository (`SemEval-2021_MCL-WiC_*.zip`).
+
+Once these archives are unpacked under `data/raw/`, preprocessing works offline without any Hugging Face dependencies.
 
 ## SenseSample Schema
 

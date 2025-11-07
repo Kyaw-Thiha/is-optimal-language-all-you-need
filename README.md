@@ -50,21 +50,13 @@ accept the Sapienza/BabelNet license before running the command; MCL-WiC pulls f
 official SemEval GitHub repo; XL-WiC now comes from the authors’ EMNLP mirror so it
 works offline once the archive is downloaded.
 
-### Hugging Face Access
+### Dataset Access
 
-XL-WSD lives on a gated Hugging Face repo under `pasinit/xl-wsd`. Before running
-`python main.py datahub`, accept the dataset terms in your browser
-(`https://huggingface.co/datasets/pasinit/xl-wsd`) and authenticate locally:
-
-```shell
-huggingface-cli login
-# or
-export HF_TOKEN=hf_xxx  # any token with dataset read access
-```
-
-Without a token, `datasets` raises `DatasetNotFoundError` because it cannot access the
-repository. XL-WiC now downloads directly from the official EMNLP archive, so no Hugging
-Face token is required for that dataset.
+XL-WSD still requires that you accept the Sapienza/BabelNet license before the Google
+Drive mirror (fetched via `gdown`) will download. MCL-WiC is sourced from the official
+SemEval GitHub repository, and XL-WiC is mirrored from the EMNLP release site. None of
+the corpora require Hugging Face authentication anymore; once the archives are cached
+under `data/raw/`, preprocessing works fully offline.
 
 ### Tests
 
@@ -75,7 +67,7 @@ after installation:
 pytest
 ```
 
-Tests run offline thanks to local fixtures and monkeypatched Hugging Face loaders.
+Tests run offline thanks to local fixtures and parser-specific stubs.
 
 ## Project Layout
 

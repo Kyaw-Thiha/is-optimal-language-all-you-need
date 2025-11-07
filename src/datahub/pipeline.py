@@ -24,7 +24,6 @@ class DataRequest:
     @classmethod
     def from_flags(
         cls,
-        *,
         all: bool,
         xl_wsd: bool,
         xl_wic: bool,
@@ -36,11 +35,7 @@ class DataRequest:
         if all:
             selected = list(ALL_DATASETS)
         else:
-            selected = [
-                dataset
-                for dataset, flag in zip(ALL_DATASETS, (xl_wsd, xl_wic, mcl_wic))
-                if flag
-            ]
+            selected = [dataset for dataset, flag in zip(ALL_DATASETS, (xl_wsd, xl_wic, mcl_wic)) if flag]
 
         if not selected:
             raise ValueError("Select at least one dataset via --all or dataset flags.")
@@ -53,7 +48,6 @@ class DataRequest:
 
 def prepare_datasets(
     request: DataRequest,
-    *,
     raw_root: Path,
     processed_root: Path,
     force: bool = False,
@@ -79,6 +73,7 @@ def prepare_datasets(
         raw_root=raw_root,
         datasets=request.datasets,
         xlwic_configs=request.xlwic_configs,
+        mclwic_splits=request.mclwic_splits,
     )
 
 

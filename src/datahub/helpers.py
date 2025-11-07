@@ -2,12 +2,6 @@ from __future__ import annotations
 
 from typing import Any, Dict, Mapping, Sequence, cast
 
-HF_DATASET_ACCESS_HINT = (
-    "Hint: https://huggingface.co/datasets/{hub_id} may be gated. "
-    "Accept the terms for that dataset and authenticate via `huggingface-cli login` "
-    "or set the HF_TOKEN/HUGGING_FACE_HUB_TOKEN environment variable before retrying."
-)
-
 
 def sample_to_record(sample: Any) -> Dict[str, Any]:
     """Convert a dataclass-like record to a plain dict with list span."""
@@ -48,30 +42,3 @@ def to_int(value: Any) -> int:
         return int(value)  # type: ignore[arg-type]
     except (TypeError, ValueError) as exc:
         raise ValueError(f"Cannot convert {value!r} to int") from exc
-
-
-def load_materialized(path: str):
-    """Load a dataset dict, rejecting streaming variants."""
-    from datasets import (
-        Dataset,
-        DatasetDict,
-        IterableDataset,
-        IterableDatasetDict,
-        load_dataset,
-    )
-    from datasets.exceptions import DatasetNotFoundError
-
-    try:
-        dataset = load_dataset(path, streaming=False)
-    except DatasetNotFoundError as exc:
-        hint = HF_DATASET_ACCESS_HINT.format(hub_id=path)
-        raise DatasetNotFoundError(f"{exc}\n\n{hint}") from exc
-    if isinstance(dataset, DatasetDict):
-        return dataset
-    if isinstance(dataset, (IterableDatasetDict, IterableDataset)):
-        raise TypeError(
-            f"Dataset {path} loaded in streaming mode; disable streaming before preprocessing."
-        )
-    if isinstance(dataset, Dataset):
-        return DatasetDict({"train": dataset})
-    raise TypeError(f"Unsupported dataset type {type(dataset)} for {path}")
