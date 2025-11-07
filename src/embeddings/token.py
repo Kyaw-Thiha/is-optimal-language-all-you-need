@@ -7,6 +7,7 @@ from typing import List, Sequence, Tuple
 import torch
 
 Span = Tuple[int, int]  # (start_idx, end_idx) in token space, end exclusive
+_TRUNCATION_WARNING_EMITTED = False
 
 
 def gather_token_hidden_states(
@@ -37,10 +38,21 @@ def gather_token_hidden_states(
     slices: List[torch.Tensor] = []
     seq_len = hidden_states.size(1)
 
+    global _TRUNCATION_WARNING_EMITTED
+
     for span, sample_states in zip(spans, hidden_states):
         start, end = span
-        if not (0 <= start < end <= seq_len):
-            raise ValueError(f"Invalid span indices: {(start, end)} against sequence length {seq_len}")
+        if end > seq_len or start >= seq_len:
+            if not _TRUNCATION_WARNING_EMITTED:
+                print(
+                    "[token] Warning: target span exceeds tokenized length; clamping to available tokens (logged once)."
+                )
+                _TRUNCATION_WARNING_EMITTED = True
+            start = min(start, seq_len - 1)
+            end = min(end, seq_len)
+        if end <= start:
+            end = min(start + 1, seq_len)
+            start = max(end - 1, 0)
         slices.append(sample_states[start:end])
 
     return slices
