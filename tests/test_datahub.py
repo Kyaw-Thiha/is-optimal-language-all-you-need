@@ -15,7 +15,6 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.datahub.download import download_datasets
 from src.datahub.helpers import (
     ensure_mapping,
     load_materialized,
@@ -31,6 +30,7 @@ from src.datahub.preprocess import (
     preprocess_xlwic,
 )
 from src.datahub.sense_sample import SenseSample
+from src.datahub.pipeline import DataRequest, prepare_datasets
 
 
 # ---------------------------------------------------------------------------
@@ -225,6 +225,18 @@ def test_preprocess_datasets_calls_all(monkeypatch: pytest.MonkeyPatch, tmp_path
     assert called == {"xlwsd": 1, "xlwic": 1, "mclwic": 1}
 
 
+def test_preprocess_datasets_subset(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    called = {"xlwsd": 0, "xlwic": 0, "mclwic": 0}
+
+    monkeypatch.setattr("src.datahub.preprocess.preprocess_xlwsd", lambda root: called.__setitem__("xlwsd", called["xlwsd"] + 1))
+    monkeypatch.setattr("src.datahub.preprocess.preprocess_xlwic", lambda root: called.__setitem__("xlwic", called["xlwic"] + 1))
+    monkeypatch.setattr("src.datahub.preprocess.preprocess_mclwic", lambda root: called.__setitem__("mclwic", called["mclwic"] + 1))
+
+    preprocess_datasets(tmp_path, datasets=("xlwsd", "mclwic", "xlwsd"))
+
+    assert called == {"xlwsd": 1, "xlwic": 0, "mclwic": 1}
+
+
 # ---------------------------------------------------------------------------
 # Loader tests
 
@@ -282,29 +294,73 @@ def test_load_preprocessed_span_conversion(tmp_path: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Download utility tests
+# Pipeline tests
 
 
-def test_download_datasets_saves_to_disk(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    def fake_load_materialized(hub_id: str):
-        return DatasetDict({"train": Dataset.from_list([{"hub": hub_id}])})
+def test_data_request_from_flags_all() -> None:
+    request = DataRequest.from_flags(
+        all=True,
+        xl_wsd=False,
+        xl_wic=False,
+        mcl_wic=False,
+        xlwic_config=["default", "de"],
+        mclwic_splits=["trial"],
+    )
 
-    monkeypatch.setattr("src.datahub.download.load_materialized", fake_load_materialized)
-
-    download_datasets(cache_root=tmp_path)
-
-    for alias in ("xlwsd", "xlwic", "mclwic"):
-        assert (tmp_path / alias).exists()
+    assert request.datasets == ("xlwsd", "xlwic", "mclwic")
+    assert request.xlwic_configs == ("default", "de")
+    assert request.mclwic_splits == ("trial",)
 
 
-def test_download_datasets_rejects_streaming(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    def raise_streaming(_: str):
-        raise TypeError("streaming dataset not supported")
+def test_data_request_requires_selection() -> None:
+    with pytest.raises(ValueError):
+        DataRequest.from_flags(
+            all=False,
+            xl_wsd=False,
+            xl_wic=False,
+            mcl_wic=False,
+            xlwic_config=["default"],
+            mclwic_splits=["all"],
+        )
 
-    monkeypatch.setattr("src.datahub.download.load_materialized", raise_streaming)
 
-    with pytest.raises(TypeError):
-        download_datasets(cache_root=tmp_path)
+def test_prepare_datasets_invokes_selected(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    downloads = []
+    preprocess_calls = []
+
+    monkeypatch.setattr(
+        "src.datahub.pipeline.download_xlwic",
+        lambda root, configs, force: downloads.append(("xlwic", tuple(configs), force, root)),
+    )
+    monkeypatch.setattr(
+        "src.datahub.pipeline.download_mclwic",
+        lambda root, splits, force: downloads.append(("mclwic", tuple(splits), force, root)),
+    )
+    monkeypatch.setattr(
+        "src.datahub.pipeline.download_xlwsd",
+        lambda root, force: downloads.append(("xlwsd", (), force, root)),
+    )
+    monkeypatch.setattr(
+        "src.datahub.pipeline.preprocess_datasets",
+        lambda output_root, datasets=None: preprocess_calls.append((output_root, tuple(datasets or ()))),
+    )
+
+    request = DataRequest(
+        datasets=("xlwic", "mclwic"),
+        xlwic_configs=("default", "de"),
+        mclwic_splits=("trial",),
+    )
+
+    raw_root = tmp_path / "raw"
+    processed_root = tmp_path / "proc"
+
+    prepare_datasets(request, raw_root=raw_root, processed_root=processed_root, force=True)
+
+    assert downloads == [
+        ("xlwic", ("default", "de"), True, raw_root),
+        ("mclwic", ("trial",), True, raw_root),
+    ]
+    assert preprocess_calls == [(processed_root, ("xlwic", "mclwic"))]
 
 
 # ---------------------------------------------------------------------------

@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional, Sequence, Set, Literal
 
 from datasets import Dataset
 
 from .sense_sample import SenseSample
 from .helpers import ensure_mapping, load_materialized, sample_to_record, safe_sequence, to_int
+
+DatasetId = Literal["xlwsd", "xlwic", "mclwic"]
+ALL_DATASETS: Sequence[DatasetId] = ("xlwsd", "xlwic", "mclwic")
 
 
 def preprocess_xlwsd(output_root: Path) -> None:
@@ -91,12 +94,40 @@ def preprocess_mclwic(output_root: Path) -> None:
         Dataset.from_list(records).save_to_disk(target_root / str(split_name))
 
 
-def preprocess_datasets(output_root: Path = Path("data/preprocess")) -> None:
-    """Preprocess every dataset and save them under data/preprocess/."""
+def _normalize_selection(datasets: Optional[Sequence[DatasetId]]) -> Sequence[DatasetId]:
+    """Return a deterministic, validated tuple of dataset ids."""
+    if not datasets:
+        return tuple(ALL_DATASETS)
+
+    seen: Set[str] = set()
+    normalized = []
+    for dataset in datasets:
+        if dataset not in ALL_DATASETS:
+            raise ValueError(f"Unknown dataset key '{dataset}'")
+        if dataset in seen:
+            continue
+        normalized.append(dataset)
+        seen.add(dataset)
+    return tuple(normalized)
+
+
+def preprocess_datasets(
+    output_root: Path = Path("data/preprocess"),
+    datasets: Optional[Sequence[DatasetId]] = None,
+) -> None:
+    """Preprocess selected datasets (default: all) and save them under data/preprocess/."""
     output_root.mkdir(parents=True, exist_ok=True)
-    preprocess_xlwsd(output_root)
-    preprocess_xlwic(output_root)
-    preprocess_mclwic(output_root)
+    targets = _normalize_selection(datasets)
+
+    for dataset in targets:
+        if dataset == "xlwsd":
+            preprocess_xlwsd(output_root)
+        elif dataset == "xlwic":
+            preprocess_xlwic(output_root)
+        elif dataset == "mclwic":
+            preprocess_mclwic(output_root)
+        else:
+            raise ValueError(f"Unknown dataset key '{dataset}'")
 
 
 if __name__ == "__main__":

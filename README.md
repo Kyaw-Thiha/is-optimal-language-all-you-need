@@ -20,17 +20,37 @@ The CLI lives in `main.py` and uses Typer. Once dependencies are installed, you 
 invoke commands as follows:
 
 ```shell
-python main.py dataset       # download & preprocess datasets
+python main.py datahub --all # download & preprocess datasets
 python main.py infer         # temporary stub; will grow with additional options
 ```
 
 Additional commands will be added over time—`python main.py --help` shows the latest
 set.
 
+### DataHub Command
+
+`python main.py datahub` now covers both downloading the corpora and materializing them
+into the unified `SenseSample` schema. Pass `--all` to fetch everything or select
+datasets via dedicated flags:
+
+```shell
+python main.py datahub --xl-wsd
+python main.py datahub --mcl-wic --mclwic-splits all test-gold
+python main.py datahub --xl-wic --xlwic-config de fr it
+python main.py datahub --all --force
+```
+
+Raw caches land in `data/raw/...` (configurable via `--raw-root`) and processed
+artifacts in `data/preprocess/` (configurable via `--processed-root`). SHA256 metadata
+ensures archives are reused unless `--force` is set. XL-WSD still requires that you
+accept the Sapienza/BabelNet license before running the command; MCL-WiC pulls from the
+official SemEval GitHub repo; XL-WiC uses Hugging Face’s `pasinit/xlwic`, so make sure
+`datasets` can authenticate if the dataset ever becomes gated.
+
 ### Hugging Face Access
 
 XL-WSD and XL-WiC live on gated Hugging Face repos under `pasinit/*`. Before running
-`python main.py dataset`, accept the dataset terms in your browser
+`python main.py datahub`, accept the dataset terms in your browser
 (`https://huggingface.co/datasets/pasinit/xl-wsd`, `https://huggingface.co/datasets/pasinit/xl-wic`)
 and authenticate locally:
 
@@ -71,9 +91,12 @@ project-root/
 │   ├── datahub/
 │   │   ├── README.md
 │   │   ├── __init__.py
-│   │   ├── download.py
+│   │   ├── config.py
+│   │   ├── datasets/
 │   │   ├── helpers.py
+│   │   ├── io.py
 │   │   ├── loader.py
+│   │   ├── pipeline.py
 │   │   ├── preprocess.py
 │   │   └── sense_sample.py
 │   ├── embeddings/
