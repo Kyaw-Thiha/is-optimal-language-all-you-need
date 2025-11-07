@@ -71,7 +71,7 @@ class DummyModel:
         *,
         output_hidden_states: bool,
         output_attentions: bool,
-        use_cache: bool,
+        use_cache: bool | None = None,
         **_: object,
     ) -> SimpleNamespace:
         batch_size, seq_len = input_ids.shape

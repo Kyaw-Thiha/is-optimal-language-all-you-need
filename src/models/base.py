@@ -137,11 +137,15 @@ class BaseModelRunner:
         """Run a forward pass and normalize the resulting tensors."""
 
         device_batch = {k: v.to(self.device) for k, v in batch.items()}
+        forward_kwargs = {
+            "output_hidden_states": True,
+            "output_attentions": self.capture_attentions,
+        }
+        if self.spec.arch in {"decoder_only", "seq2seq"}:
+            forward_kwargs["use_cache"] = False
         outputs = self.model(
             **device_batch,
-            output_hidden_states=True,
-            output_attentions=self.capture_attentions,
-            use_cache=False,
+            **forward_kwargs,
         )
 
         encoder_hidden_states: Optional[Sequence[torch.Tensor]]
