@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Iterable, List, Sequence
 
 import torch
+import torch.nn.functional as F
 
 from .base import BaseModelRunner
 
@@ -31,12 +32,29 @@ class HiddenStateExtractor:
         """Return concatenated hidden states for every layer."""
 
         buffers: List[List[torch.Tensor]] = []
+        max_seq_len = 0
+
         for chunk in self._iterate_batches(texts):
             if not buffers:
                 buffers = [[] for _ in range(len(chunk.hidden_states))]
+            if chunk.hidden_states:
+                max_seq_len = max(max_seq_len, chunk.hidden_states[0].shape[1])
             for layer_idx, tensor in enumerate(chunk.hidden_states):
                 buffers[layer_idx].append(tensor)
-        return [torch.cat(parts, dim=0) for parts in buffers]
+
+        if not buffers:
+            return []
+
+        padded_layers: List[torch.Tensor] = []
+        for layer_tensors in buffers:
+            padded = [
+                tensor
+                if tensor.shape[1] == max_seq_len
+                else F.pad(tensor, (0, 0, 0, max_seq_len - tensor.shape[1]))
+                for tensor in layer_tensors
+            ]
+            padded_layers.append(torch.cat(padded, dim=0))
+        return padded_layers
 
     def _iterate_batches(self, texts: Sequence[str]) -> Iterable[ForwardBatch]:
         total = len(texts)
