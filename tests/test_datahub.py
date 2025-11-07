@@ -45,6 +45,45 @@ def _make_dataset_dict(rows_per_split: Mapping[str, Iterable[Mapping[str, object
     )
 
 
+def _write_xlwic_fixture(tmp_path: Path) -> Path:
+    """Create a minimal XL-WiC folder structure with French samples."""
+
+    raw_root = tmp_path / "raw"
+    fr_root = raw_root / "xlwic" / "xlwic_datasets" / "xlwic_wikt" / "french_fr"
+    fr_root.mkdir(parents=True, exist_ok=True)
+
+    validation_line = "\t".join(
+        [
+            "fleuve",
+            "NOUN",
+            "0",
+            "1",
+            "0",
+            "1",
+            "Le fleuve déborde.",
+            "Le fleuve est paisible.",
+            "1",
+        ]
+    )
+    (fr_root / "fr_valid.txt").write_text(validation_line + "\n", encoding="utf-8")
+
+    test_line = "\t".join(
+        [
+            "fleuve",
+            "NOUN",
+            "0",
+            "1",
+            "0",
+            "1",
+            "Il regarde la rive.",
+            "La rive est boueuse.",
+        ]
+    )
+    (fr_root / "fr_test_data.txt").write_text(test_line + "\n", encoding="utf-8")
+    (fr_root / "fr_test_gold.txt").write_text("0\n", encoding="utf-8")
+    return raw_root
+
+
 # ---------------------------------------------------------------------------
 # Helper utility tests
 
@@ -161,31 +200,19 @@ def test_preprocess_xlwsd(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> No
     assert row["target_span"] == [3, 7]
 
 
-def test_preprocess_xlwic(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    raw = _make_dataset_dict(
-        {
-            "validation": [
-                {
-                    "language": "fr",
-                    "sentence1": "Le fleuve déborde.",
-                    "sentence2": "Le fleuve est paisible.",
-                    "lemma": "fleuve",
-                    "label": 1,
-                }
-            ]
-        }
-    )
+def test_preprocess_xlwic(tmp_path: Path) -> None:
+    raw_root = _write_xlwic_fixture(tmp_path)
 
-    monkeypatch.setattr("src.datahub.preprocess.load_materialized", lambda _: raw)
+    preprocess_xlwic(tmp_path, raw_root=raw_root, configs=("fr",))
 
-    preprocess_xlwic(tmp_path)
-
-    saved = load_from_disk(str(tmp_path / "xlwic" / "validation"))
-    row = saved[0]
-
+    validation = load_from_disk(str(tmp_path / "xlwic" / "validation"))
+    row = validation[0]
     assert row["dataset_id"] == "xlwic"
     assert row["text_b"] == "Le fleuve est paisible."
     assert row["same_sense"] == 1
+
+    test_split = load_from_disk(str(tmp_path / "xlwic" / "test"))
+    assert test_split[0]["same_sense"] == 0
 
 
 def test_preprocess_mclwic(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -217,7 +244,10 @@ def test_preprocess_datasets_calls_all(monkeypatch: pytest.MonkeyPatch, tmp_path
     called = {"xlwsd": 0, "xlwic": 0, "mclwic": 0}
 
     monkeypatch.setattr("src.datahub.preprocess.preprocess_xlwsd", lambda root: called.__setitem__("xlwsd", called["xlwsd"] + 1))
-    monkeypatch.setattr("src.datahub.preprocess.preprocess_xlwic", lambda root: called.__setitem__("xlwic", called["xlwic"] + 1))
+    monkeypatch.setattr(
+        "src.datahub.preprocess.preprocess_xlwic",
+        lambda root, **kwargs: called.__setitem__("xlwic", called["xlwic"] + 1),
+    )
     monkeypatch.setattr("src.datahub.preprocess.preprocess_mclwic", lambda root: called.__setitem__("mclwic", called["mclwic"] + 1))
 
     preprocess_datasets(tmp_path)
@@ -229,7 +259,10 @@ def test_preprocess_datasets_subset(monkeypatch: pytest.MonkeyPatch, tmp_path: P
     called = {"xlwsd": 0, "xlwic": 0, "mclwic": 0}
 
     monkeypatch.setattr("src.datahub.preprocess.preprocess_xlwsd", lambda root: called.__setitem__("xlwsd", called["xlwsd"] + 1))
-    monkeypatch.setattr("src.datahub.preprocess.preprocess_xlwic", lambda root: called.__setitem__("xlwic", called["xlwic"] + 1))
+    monkeypatch.setattr(
+        "src.datahub.preprocess.preprocess_xlwic",
+        lambda root, **kwargs: called.__setitem__("xlwic", called["xlwic"] + 1),
+    )
     monkeypatch.setattr("src.datahub.preprocess.preprocess_mclwic", lambda root: called.__setitem__("mclwic", called["mclwic"] + 1))
 
     preprocess_datasets(tmp_path, datasets=("xlwsd", "mclwic", "xlwsd"))
@@ -342,7 +375,14 @@ def test_prepare_datasets_invokes_selected(monkeypatch: pytest.MonkeyPatch, tmp_
     )
     monkeypatch.setattr(
         "src.datahub.pipeline.preprocess_datasets",
-        lambda output_root, datasets=None: preprocess_calls.append((output_root, tuple(datasets or ()))),
+        lambda output_root, **kwargs: preprocess_calls.append(
+            {
+                "output_root": output_root,
+                "datasets": tuple(kwargs.get("datasets") or ()),
+                "raw_root": kwargs.get("raw_root"),
+                "xlwic_configs": tuple(kwargs.get("xlwic_configs") or ()),
+            }
+        ),
     )
 
     request = DataRequest(
@@ -360,7 +400,14 @@ def test_prepare_datasets_invokes_selected(monkeypatch: pytest.MonkeyPatch, tmp_
         ("xlwic", ("default", "de"), True, raw_root),
         ("mclwic", ("trial",), True, raw_root),
     ]
-    assert preprocess_calls == [(processed_root, ("xlwic", "mclwic"))]
+    assert preprocess_calls == [
+        {
+            "output_root": processed_root,
+            "datasets": ("xlwic", "mclwic"),
+            "raw_root": raw_root,
+            "xlwic_configs": ("default", "de"),
+        }
+    ]
 
 
 # ---------------------------------------------------------------------------

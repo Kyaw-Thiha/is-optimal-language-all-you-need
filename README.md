@@ -40,19 +40,21 @@ python main.py datahub --xl-wic --xlwic-config de fr it
 python main.py datahub --all --force
 ```
 
+`--xlwic-config` accepts lowercase language codes (e.g., `fr`, `de`, `it`) or the special
+value `default` to include every language published in the official XL-WiC release.
+
 Raw caches land in `data/raw/...` (configurable via `--raw-root`) and processed
 artifacts in `data/preprocess/` (configurable via `--processed-root`). SHA256 metadata
 ensures archives are reused unless `--force` is set. XL-WSD still requires that you
 accept the Sapienza/BabelNet license before running the command; MCL-WiC pulls from the
-official SemEval GitHub repo; XL-WiC uses Hugging Face’s `pasinit/xlwic`, so make sure
-`datasets` can authenticate if the dataset ever becomes gated.
+official SemEval GitHub repo; XL-WiC now comes from the authors’ EMNLP mirror so it
+works offline once the archive is downloaded.
 
 ### Hugging Face Access
 
-XL-WSD and XL-WiC live on gated Hugging Face repos under `pasinit/*`. Before running
+XL-WSD lives on a gated Hugging Face repo under `pasinit/xl-wsd`. Before running
 `python main.py datahub`, accept the dataset terms in your browser
-(`https://huggingface.co/datasets/pasinit/xl-wsd`, `https://huggingface.co/datasets/pasinit/xl-wic`)
-and authenticate locally:
+(`https://huggingface.co/datasets/pasinit/xl-wsd`) and authenticate locally:
 
 ```shell
 huggingface-cli login
@@ -61,7 +63,8 @@ export HF_TOKEN=hf_xxx  # any token with dataset read access
 ```
 
 Without a token, `datasets` raises `DatasetNotFoundError` because it cannot access the
-repositories.
+repository. XL-WiC now downloads directly from the official EMNLP archive, so no Hugging
+Face token is required for that dataset.
 
 ### Tests
 

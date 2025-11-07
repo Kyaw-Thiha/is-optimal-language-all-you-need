@@ -5,6 +5,8 @@ from typing import Any, Dict, List, Optional, Sequence, Set, Literal
 
 from datasets import Dataset
 
+from .config import DEFAULT_RAW_ROOT, XL_WIC
+from .datasets.xlwic_utils import collect_xlwic_rows, normalize_xlwic_configs
 from .sense_sample import SenseSample
 from .helpers import ensure_mapping, load_materialized, sample_to_record, safe_sequence, to_int
 
@@ -42,13 +44,35 @@ def preprocess_xlwsd(output_root: Path) -> None:
         Dataset.from_list(records).save_to_disk(target_root / str(split_name))
 
 
-def preprocess_xlwic(output_root: Path) -> None:
+def preprocess_xlwic(
+    output_root: Path,
+    *,
+    raw_root: Path = DEFAULT_RAW_ROOT,
+    configs: Sequence[str] = ("default",),
+) -> None:
     """Materialize XL-WiC into the unified SenseSample layout."""
-    raw = load_materialized("pasinit/xl-wic")
+    dataset_root = raw_root / XL_WIC["folder_name"] / "xlwic_datasets"
+    if not dataset_root.exists():
+        raise FileNotFoundError(
+            f"Missing XL-WiC archive under {dataset_root}. "
+            "Run `python main.py datahub --xl-wic` to download it first."
+        )
+
+    languages = normalize_xlwic_configs(configs)
+    raw_splits = collect_xlwic_rows(dataset_root, languages)
+    if not any(raw_splits.values()):
+        raise RuntimeError(
+            "No XL-WiC samples found for the requested configurations. "
+            f"Languages requested: {', '.join(languages)}."
+        )
+
     target_root = output_root / "xlwic"
     target_root.mkdir(parents=True, exist_ok=True)
 
-    for split_name, split_dataset in raw.items():
+    for split_name in ("train", "validation", "test"):
+        split_dataset = raw_splits.get(split_name)
+        if not split_dataset:
+            continue
         records: List[Dict[str, Any]] = []
         for idx, row in enumerate(split_dataset):
             data = ensure_mapping(row)
@@ -113,7 +137,10 @@ def _normalize_selection(datasets: Optional[Sequence[DatasetId]]) -> Sequence[Da
 
 def preprocess_datasets(
     output_root: Path = Path("data/preprocess"),
+    *,
+    raw_root: Path = DEFAULT_RAW_ROOT,
     datasets: Optional[Sequence[DatasetId]] = None,
+    xlwic_configs: Sequence[str] = ("default",),
 ) -> None:
     """Preprocess selected datasets (default: all) and save them under data/preprocess/."""
     output_root.mkdir(parents=True, exist_ok=True)
@@ -123,7 +150,7 @@ def preprocess_datasets(
         if dataset == "xlwsd":
             preprocess_xlwsd(output_root)
         elif dataset == "xlwic":
-            preprocess_xlwic(output_root)
+            preprocess_xlwic(output_root, raw_root=raw_root, configs=xlwic_configs)
         elif dataset == "mclwic":
             preprocess_mclwic(output_root)
         else:

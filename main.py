@@ -73,10 +73,6 @@ def datahub(
     )
 
 
-# Backward-compatible alias: `python main.py dataset ...`
-app.command("dataset")(datahub)
-
-
 @app.command()
 def ddi_xlwsd():
     model_name: ModelKey = "minilm"

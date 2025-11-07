@@ -21,6 +21,8 @@ class MCLWICConfig(TypedDict):
 class XLWICConfig(TypedDict):
     dataset_id: str
     folder_name: str
+    archive_url: str
+    archive_name: str
 
 
 # Default directories used by the Typer CLI; callers may override these.
@@ -49,6 +51,8 @@ MCL_WIC: MCLWICConfig = {
 XL_WIC: XLWICConfig = {
     "dataset_id": "pasinit/xlwic",
     "folder_name": "xlwic",
+    "archive_url": "https://pilehvar.github.io/xlwic/data/xlwic_datasets.zip",
+    "archive_name": "xlwic_datasets.zip",
 }
 
 

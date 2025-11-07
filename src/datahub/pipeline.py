@@ -74,7 +74,12 @@ def prepare_datasets(
         else:
             raise ValueError(f"Unknown dataset key '{dataset}'")
 
-    preprocess_datasets(output_root=processed_root, datasets=request.datasets)
+    preprocess_datasets(
+        output_root=processed_root,
+        raw_root=raw_root,
+        datasets=request.datasets,
+        xlwic_configs=request.xlwic_configs,
+    )
 
 
 __all__ = ["ALL_DATASETS", "DataRequest", "prepare_datasets"]
