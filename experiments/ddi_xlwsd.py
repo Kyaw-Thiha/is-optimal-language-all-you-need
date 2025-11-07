@@ -6,6 +6,7 @@ from torch import Tensor
 
 from src.datahub.loader import load_preprocessed
 from src.models import load_model, ModelKey
+from src.models.extraction import HiddenStateExtractor
 from src.embeddings.token import Span, pool_token_embeddings
 from src.probes.linear import LinearProbe, LinearProbeConfig
 from src.metrics.ddi import compute_ddi, DDIConfig
@@ -15,17 +16,11 @@ from src.metrics.aggregation import LemmaMetricRecord, aggregate_language_scores
 LemmaTraces = Dict[str, Dict[str, Dict[int, float]]]  # language -> lemma -> layer -> score
 
 
-def run_ddi_xlwsd(model_name: ModelKey, device: str = "cuda:0"):
+def run_ddi_xlwsd(model_name: ModelKey, device: str = "cuda:0", batch_size: int = 256):
     samples = list(load_preprocessed("xlwsd", split="validation"))
     model = load_model(model_name, device=device)
-    batch = model.tokenize([sample.text_a for sample in samples])
-    outputs = model.forward(batch)
-
-    layers: List[Tensor] = []
-    if outputs.encoder_hidden_states:
-        layers.extend(outputs.encoder_hidden_states)
-    if outputs.decoder_hidden_states:
-        layers.extend(outputs.decoder_hidden_states)
+    extractor = HiddenStateExtractor(model, batch_size=batch_size, to_cpu=True)
+    layers = extractor.run([sample.text_a for sample in samples])
 
     # bucket samples by (language, lemma)
     buckets: Dict[Tuple[str, str], List[int]] = defaultdict(list)
