@@ -286,10 +286,10 @@ def test_load_preprocessed_span_conversion(tmp_path: Path) -> None:
 
 
 def test_download_datasets_saves_to_disk(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    def fake_load_dataset(hub_id: str, streaming: bool = False):
+    def fake_load_materialized(hub_id: str):
         return DatasetDict({"train": Dataset.from_list([{"hub": hub_id}])})
 
-    monkeypatch.setattr("src.datahub.download.load_dataset", fake_load_dataset)
+    monkeypatch.setattr("src.datahub.download.load_materialized", fake_load_materialized)
 
     download_datasets(cache_root=tmp_path)
 
@@ -298,9 +298,10 @@ def test_download_datasets_saves_to_disk(tmp_path: Path, monkeypatch: pytest.Mon
 
 
 def test_download_datasets_rejects_streaming(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    streaming_ds = IterableDataset.from_generator(lambda: iter([{"a": 1}]))
+    def raise_streaming(_: str):
+        raise TypeError("streaming dataset not supported")
 
-    monkeypatch.setattr("src.datahub.download.load_dataset", lambda *args, **kwargs: streaming_ds)
+    monkeypatch.setattr("src.datahub.download.load_materialized", raise_streaming)
 
     with pytest.raises(TypeError):
         download_datasets(cache_root=tmp_path)

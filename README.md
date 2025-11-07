@@ -27,6 +27,22 @@ python main.py infer         # temporary stub; will grow with additional options
 Additional commands will be added over time—`python main.py --help` shows the latest
 set.
 
+### Hugging Face Access
+
+XL-WSD and XL-WiC live on gated Hugging Face repos under `pasinit/*`. Before running
+`python main.py dataset`, accept the dataset terms in your browser
+(`https://huggingface.co/datasets/pasinit/xl-wsd`, `https://huggingface.co/datasets/pasinit/xl-wic`)
+and authenticate locally:
+
+```shell
+huggingface-cli login
+# or
+export HF_TOKEN=hf_xxx  # any token with dataset read access
+```
+
+Without a token, `datasets` raises `DatasetNotFoundError` because it cannot access the
+repositories.
+
 ### Tests
 
 The project ships with pytest suites for the data hub and model runners. Execute them
@@ -206,4 +222,3 @@ records = [
 ]
 summaries = aggregate_language_scores(records, draws=200, tune=200, chains=2, cores=1)
 ```
-

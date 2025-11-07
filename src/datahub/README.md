@@ -10,6 +10,13 @@ This package houses the data-facing building blocks for the project—everything
 - `loader.py`: Reads preprocessed splits from disk and yields `SenseSample` objects for downstream metrics.
 - `sense_sample.py`: Defines the `SenseSample` dataclass—our minimal, task-agnostic view of a sense instance.
 
+## Accessing Hugging Face Corpora
+
+XL-WSD and XL-WiC are hosted on gated Hugging Face datasets. Visit their pages, accept
+the terms, and run `huggingface-cli login` (or export `HF_TOKEN`) before calling
+`download.py` or the top-level `python main.py dataset` command. Otherwise the Hub will
+reject the request with `DatasetNotFoundError`.
+
 ## SenseSample Schema
 
 ```python

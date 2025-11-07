@@ -2,6 +2,12 @@ from __future__ import annotations
 
 from typing import Any, Dict, Mapping, Sequence, cast
 
+HF_DATASET_ACCESS_HINT = (
+    "Hint: https://huggingface.co/datasets/{hub_id} may be gated. "
+    "Accept the terms for that dataset and authenticate via `huggingface-cli login` "
+    "or set the HF_TOKEN/HUGGING_FACE_HUB_TOKEN environment variable before retrying."
+)
+
 
 def sample_to_record(sample: Any) -> Dict[str, Any]:
     """Convert a dataclass-like record to a plain dict with list span."""
@@ -53,8 +59,13 @@ def load_materialized(path: str):
         IterableDatasetDict,
         load_dataset,
     )
+    from datasets.exceptions import DatasetNotFoundError
 
-    dataset = load_dataset(path, streaming=False)
+    try:
+        dataset = load_dataset(path, streaming=False)
+    except DatasetNotFoundError as exc:
+        hint = HF_DATASET_ACCESS_HINT.format(hub_id=path)
+        raise DatasetNotFoundError(f"{exc}\n\n{hint}") from exc
     if isinstance(dataset, DatasetDict):
         return dataset
     if isinstance(dataset, (IterableDatasetDict, IterableDataset)):
