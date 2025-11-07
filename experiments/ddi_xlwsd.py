@@ -3,6 +3,7 @@ from typing import Dict, List, Tuple, cast
 
 import numpy as np
 from torch import Tensor
+from tqdm import tqdm
 
 from src.datahub.loader import load_preprocessed
 from src.models import load_model, ModelKey
@@ -36,7 +37,7 @@ def run_ddi_xlwsd(model_name: ModelKey, device: str = "cuda:0", batch_size: int 
     records: list[LemmaMetricRecord] = []
 
     print("[ddi] Starting lemma probing loop.")
-    for (language, lemma), indices in buckets.items():
+    for (language, lemma), indices in tqdm(buckets.items(), desc="Probing lemmas"):
         # Sampling out the current lemma
         lemma_samples = [samples[i] for i in indices]
 

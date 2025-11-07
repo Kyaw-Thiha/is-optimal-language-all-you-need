@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from math import ceil
 from typing import Iterable, List, Sequence
 
 import torch
 import torch.nn.functional as F
+from tqdm import tqdm
 
 from .base import BaseModelRunner
 
@@ -34,7 +36,9 @@ class HiddenStateExtractor:
         buffers: List[List[torch.Tensor]] = []
         max_seq_len = 0
 
-        for chunk in self._iterate_batches(texts):
+        iterator = self._iterate_batches(texts)
+        total = ceil(len(texts) / self.batch_size) if texts else 0
+        for chunk in tqdm(iterator, total=total, desc="Forward pass", leave=False):
             if not buffers:
                 buffers = [[] for _ in range(len(chunk.hidden_states))]
             if chunk.hidden_states:
