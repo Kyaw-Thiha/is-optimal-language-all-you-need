@@ -17,19 +17,25 @@ LemmaTraces = Dict[str, Dict[str, Dict[int, float]]]  # language -> lemma -> lay
 
 
 def run_ddi_xlwsd(model_name: ModelKey, device: str = "cuda:0", batch_size: int = 256):
+    print("[ddi] Starting DDI pipeline.")
     samples = list(load_preprocessed("xlwsd", split="validation"))
+    print(f"[ddi] Loaded {len(samples)} samples; starting forward pass with batch size {batch_size}.")
     model = load_model(model_name, device=device)
     extractor = HiddenStateExtractor(model, batch_size=batch_size, to_cpu=True)
     layers = extractor.run([sample.text_a for sample in samples])
+    print(f"[ddi] Forward pass complete; cached {len(layers)} layers on CPU.")
 
     # bucket samples by (language, lemma)
+    print("[ddi] Starting lemma bucketing.")
     buckets: Dict[Tuple[str, str], List[int]] = defaultdict(list)
     for idx, sample in enumerate(samples):
         buckets[(sample.language, sample.lemma)].append(idx)
+    print(f"[ddi] Bucketing complete; {len(buckets)} language/lemma pairs to probe.")
 
     lemma_traces: LemmaTraces = defaultdict(lambda: defaultdict(dict))
     records: list[LemmaMetricRecord] = []
 
+    print("[ddi] Starting lemma probing loop.")
     for (language, lemma), indices in buckets.items():
         # Sampling out the current lemma
         lemma_samples = [samples[i] for i in indices]
@@ -73,6 +79,7 @@ def run_ddi_xlwsd(model_name: ModelKey, device: str = "cuda:0", batch_size: int 
                 )
             )
         print(f"{language}/{lemma} → DDI layer={ddi.layer}")
+    print(f"[ddi] Finished probing; collected {len(records)} DDI records. Running aggregation ...")
 
     summaries = aggregate_language_scores(
         records,
@@ -82,5 +89,6 @@ def run_ddi_xlwsd(model_name: ModelKey, device: str = "cuda:0", batch_size: int 
         cores=1,
         random_seed=123,
     )
+    print(f"[ddi] Aggregation complete ({len(summaries)} summaries).")
 
     return summaries, lemma_traces, records
