@@ -20,6 +20,7 @@ venv/
 # Data & outputs
 data/
 reports/
+artifacts/
 
 # Notebooks
 *.ipynb_checkpoints/
