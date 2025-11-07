@@ -20,7 +20,7 @@ class LinearProbeConfig:
     C: float = 1.0
     solver: str = "lbfgs"
     max_iter: int = 1000
-    multi_class: str = "auto"
+    multi_class: str = "multinomial"
     fit_intercept: bool = True
     class_weight: Optional[Union[str, Dict[int, float]]] = None
     n_jobs: Optional[int] = None
