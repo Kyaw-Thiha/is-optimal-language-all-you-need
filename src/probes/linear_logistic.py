@@ -13,7 +13,7 @@ from .helpers import ensure_1d_array, ensure_2d_array, ensure_sample_weights
 
 
 @dataclass
-class LinearProbeConfig:
+class LinearLogisticProbeConfig:
     """Hyper-parameters forwarded to scikit-learn's LogisticRegression."""
 
     penalty: str = "l2"
@@ -29,11 +29,11 @@ class LinearProbeConfig:
     tol: float = 1e-4
 
 
-class LinearProbe(BaseProbe):
-    """Linear Regression"""
+class LinearLogisticProbe(BaseProbe):
+    """Logistic regression probe."""
 
-    def __init__(self, config: Optional[LinearProbeConfig] = None) -> None:
-        self.config = config or LinearProbeConfig()
+    def __init__(self, config: Optional[LinearLogisticProbeConfig] = None) -> None:
+        self.config = config or LinearLogisticProbeConfig()
         self.model: Optional[LogisticRegression] = None
 
     def fit(
@@ -41,7 +41,7 @@ class LinearProbe(BaseProbe):
         features: ArrayLike,
         labels: LabelLike,
         sample_weights: WeightsLike = None,
-    ) -> "LinearProbe":
+    ) -> "LinearLogisticProbe":
         X = ensure_2d_array(features)
         y = ensure_1d_array(labels)
         if X.shape[0] != y.shape[0]:
@@ -91,7 +91,7 @@ class LinearProbe(BaseProbe):
 
     def _require_model(self) -> LogisticRegression:
         if self.model is None:
-            raise RuntimeError("LinearProbe has not been fitted yet.")
+            raise RuntimeError("LinearLogisticProbe has not been fitted yet.")
         return self.model
 
 

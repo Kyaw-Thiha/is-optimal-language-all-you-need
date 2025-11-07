@@ -9,7 +9,7 @@ from src.datahub.loader import load_preprocessed
 from src.models import load_model, ModelKey
 from src.models.extraction import HiddenStateExtractor
 from src.embeddings.token import Span, pool_token_embeddings
-from src.probes.linear import LinearProbe, LinearProbeConfig
+from src.probes.linear_regression import LinearRegressionProbe, LinearRegressionProbeConfig
 from src.metrics.ddi import compute_ddi, DDIConfig
 from src.metrics.ddi_policy import FixedThresholdPolicy
 from src.metrics.aggregation import LemmaMetricRecord, aggregate_language_scores
@@ -98,17 +98,12 @@ def run_ddi_xlwsd(model_name: ModelKey, device: str = "cuda:0", batch_size: int 
         layer_features = features_by_lemma[(language, lemma)]
         lemma_scores: Dict[int, float] = {}
 
-        unique_labels = np.unique(labels)
-        if unique_labels.size < 2:
-            print(f"[ddi] Skipping {language}/{lemma}: only one sense present in validation split.")
-            continue
-
         for layer_idx, features_tensor in enumerate(layer_features):
             features = features_tensor.numpy()
-            probe = LinearProbe(LinearProbeConfig(max_iter=200))
+            probe = LinearRegressionProbe(LinearRegressionProbeConfig())
             probe.fit(features, labels)
             predicted = probe.predict(features)
-            score = (predicted == labels).mean()
+            score = float(np.mean(np.abs(predicted - labels)))
             lemma_scores[layer_idx] = score
 
         lemma_traces[language][lemma] = lemma_scores
