@@ -38,7 +38,7 @@ python main.py datahub --xl-wsd
 python main.py datahub --mcl-wic --mclwic-splits all test-gold
 python main.py datahub --xl-wic --xlwic-config de fr it
 python main.py datahub --all --force
-python main.py ddi-xlwsd --model minilm --plots-root artifacts/plots --plots-tag run-001
+python main.py ddi-xlwsd --model minilm --plots-root artifacts/plots --plots-tag run-001 --batch-size 128
 ```
 
 `--xlwic-config` accepts lowercase language codes (e.g., `fr`, `de`, `it`) or the special
