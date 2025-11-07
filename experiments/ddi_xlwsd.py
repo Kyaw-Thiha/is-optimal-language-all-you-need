@@ -98,6 +98,11 @@ def run_ddi_xlwsd(model_name: ModelKey, device: str = "cuda:0", batch_size: int 
         layer_features = features_by_lemma[(language, lemma)]
         lemma_scores: Dict[int, float] = {}
 
+        unique_labels = np.unique(labels)
+        if unique_labels.size < 2:
+            print(f"[ddi] Skipping {language}/{lemma}: only one sense present in validation split.")
+            continue
+
         for layer_idx, features_tensor in enumerate(layer_features):
             features = features_tensor.numpy()
             probe = LinearProbe(LinearProbeConfig(max_iter=200))
