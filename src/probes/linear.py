@@ -20,7 +20,8 @@ class LinearProbeConfig:
     C: float = 1.0
     solver: str = "lbfgs"
     max_iter: int = 1000
-    multi_class: str = "multinomial"
+    # Leave ``multi_class`` unset unless callers explicitly override it.
+    multi_class: Optional[str] = None
     fit_intercept: bool = True
     class_weight: Optional[Union[str, Dict[int, float]]] = None
     n_jobs: Optional[int] = None
@@ -48,18 +49,21 @@ class LinearProbe(BaseProbe):
 
         weights = ensure_sample_weights(sample_weights, X.shape[0])
 
-        self.model = LogisticRegression(
+        kwargs = dict(
             penalty=self.config.penalty,
             C=self.config.C,
             solver=self.config.solver,
             max_iter=self.config.max_iter,
-            multi_class=self.config.multi_class,
             fit_intercept=self.config.fit_intercept,
             class_weight=self.config.class_weight,
             n_jobs=self.config.n_jobs,
             random_state=self.config.random_state,
             tol=self.config.tol,
         )
+        if self.config.multi_class is not None:
+            kwargs["multi_class"] = self.config.multi_class
+
+        self.model = LogisticRegression(**kwargs)
         self.model.fit(X, y, sample_weight=weights)
         return self
 
