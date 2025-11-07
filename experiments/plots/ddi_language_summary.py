@@ -2,16 +2,22 @@
 
 from __future__ import annotations
 
-from typing import Sequence
+from pathlib import Path
+from typing import Optional, Sequence
 
 import pandas as pd
 import plotly.express as px
 
 from src.metrics.aggregation.records import LanguageSummary
 from src.models import ModelKey
+from .save_config import PlotSaveDestinations
 
 
-def plot_language_ddi(summaries: Sequence[LanguageSummary], model_name: ModelKey) -> None:
+def plot_language_ddi(
+    summaries: Sequence[LanguageSummary],
+    model_name: ModelKey,
+    save_to: Optional[PlotSaveDestinations] = None,
+) -> None:
     """Visualize aggregated DDI scores per language."""
     if not summaries:
         return
@@ -36,4 +42,16 @@ def plot_language_ddi(summaries: Sequence[LanguageSummary], model_name: ModelKey
         labels={"ddi_mean": "DDI (lower = earlier sense resolution)", "language": "Language"},
     )
     fig.update_layout(xaxis=dict(rangemode="tozero"))
-    fig.show()
+
+    if save_to:
+        save_to.ensure_dir()
+        if save_to.save_static:
+            fig.write_image(str(save_to.png_path), engine="kaleido")
+        if save_to.save_html:
+            fig.write_html(
+                str(save_to.html_path),
+                include_plotlyjs="cdn",
+                full_html=True,
+            )
+    else:
+        fig.show()

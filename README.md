@@ -38,10 +38,16 @@ python main.py datahub --xl-wsd
 python main.py datahub --mcl-wic --mclwic-splits all test-gold
 python main.py datahub --xl-wic --xlwic-config de fr it
 python main.py datahub --all --force
+python main.py ddi-xlwsd --model minilm --plots-root artifacts/plots --plots-tag run-001
 ```
 
 `--xlwic-config` accepts lowercase language codes (e.g., `fr`, `de`, `it`) or the special
 value `default` to include every language published in the official XL-WiC release.
+The `ddi-xlwsd` command now supports optional plot-saving flags:
+
+- `--plots-root`: folder where figures are written; omit it to display plots interactively.
+- `--plots-tag`: run-specific suffix (defaults to a timestamp) so repeated runs do not overwrite files.
+- `--model`, `--save-static`, `--save-html`: choose the model key and whether to emit PNG/HTML outputs.
 
 Raw caches land in `data/raw/...` (configurable via `--raw-root`) and processed
 artifacts in `data/preprocess/` (configurable via `--processed-root`). SHA256 metadata

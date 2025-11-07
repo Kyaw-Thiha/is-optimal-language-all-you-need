@@ -1,11 +1,12 @@
+from datetime import datetime
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 import typer
 from InquirerPy import inquirer
 
 from experiments.ddi_xlwsd import run_ddi_xlwsd
-from experiments.plots import plot_language_ddi, plot_language_traces
+from experiments.plots import PlotSaveConfig, plot_language_ddi, plot_language_traces
 from src.datahub import DataRequest, prepare_datasets
 from src.models import ModelKey, load_model
 
@@ -74,15 +75,40 @@ def datahub(
 
 
 @app.command()
-def ddi_xlwsd():
-    model_name: ModelKey = "minilm"
+def ddi_xlwsd(
+    model_name: ModelKey = typer.Option("minilm", "--model", help="Model key to evaluate."),
+    plots_root: Optional[Path] = typer.Option(
+        None,
+        "--plots-root",
+        help="Directory where plots should be saved (subfolders are created automatically).",
+    ),
+    plots_tag: Optional[str] = typer.Option(
+        None,
+        "--plots-tag",
+        help="Folder suffix for this run (defaults to timestamp).",
+    ),
+    save_static: bool = typer.Option(True, help="Write static PNG snapshots when saving plots."),
+    save_html: bool = typer.Option(True, help="Write interactive HTML plots when saving."),
+):
     summaries, lemma_traces, records = run_ddi_xlwsd(model_name)
 
-    # Plotting summary of all languages
-    plot_language_ddi(summaries, model_name)
+    save_config: Optional[PlotSaveConfig] = None
+    if plots_root:
+        tag = plots_tag or datetime.utcnow().strftime("%Y%m%d-%H%M%S")
+        base_dir = plots_root / "ddi_xlwsd" / model_name
+        save_config = PlotSaveConfig(base_dir=base_dir, run_tag=tag, save_static=save_static, save_html=save_html)
+        print(f"[plots] Saving figures under {base_dir / tag}")
 
-    # Plotting per language traces
-    plot_language_traces(lemma_traces, model_name)
+    plot_language_ddi(
+        summaries,
+        model_name,
+        save_to=save_config.for_plot("language_ddi") if save_config else None,
+    )
+    plot_language_traces(
+        lemma_traces,
+        model_name,
+        save_to=save_config.for_plot("language_traces") if save_config else None,
+    )
 
 
 @app.command()
