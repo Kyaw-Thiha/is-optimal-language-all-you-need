@@ -10,7 +10,6 @@ from src.models import load_model, ModelKey
 from src.models.extraction import HiddenStateExtractor
 from src.embeddings.token import Span, pool_token_embeddings
 from src.probes.linear_logistic import LinearLogisticProbe, LinearLogisticProbeConfig
-from src.probes.linear_regression import LinearRegressionProbe, LinearRegressionProbeConfig
 from src.metrics.ddi import compute_ddi, DDIConfig
 from src.metrics.ddi_policy import FixedThresholdPolicy
 from src.metrics.aggregation import LemmaMetricRecord, aggregate_language_scores
@@ -106,18 +105,11 @@ def run_ddi_xlwsd(model_name: ModelKey, device: str = "cuda:0", batch_size: int 
 
         for layer_idx, features_tensor in enumerate(layer_features):
             features = features_tensor.numpy()
-            if unique_labels.size == 2:
-                probe = LinearLogisticProbe(LinearLogisticProbeConfig(max_iter=200))
-                probe.fit(features, labels)
-                predicted = probe.predict(features)
-                error = 1.0 - float((predicted == labels).mean())
-            else:
-                probe = LinearRegressionProbe(LinearRegressionProbeConfig())
-                probe.fit(features, labels)
-                predicted = np.rint(probe.predict(features)).astype(int)
-                predicted = np.clip(predicted, unique_labels.min(), unique_labels.max())
-                error = 1.0 - float((predicted == labels).mean())
-            lemma_scores[layer_idx] = error
+            probe = LinearLogisticProbe(LinearLogisticProbeConfig(max_iter=200))
+            probe.fit(features, labels)
+            predicted = probe.predict(features)
+            accuracy = float((predicted == labels).mean())
+            lemma_scores[layer_idx] = accuracy
 
         lemma_traces[language][lemma] = lemma_scores
 
