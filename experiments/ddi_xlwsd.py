@@ -20,7 +20,9 @@ LemmaTraces = Dict[str, Dict[str, Dict[int, float]]]  # language -> lemma -> lay
 
 def run_ddi_xlwsd(model_name: ModelKey, device: str = "cuda:0", batch_size: int = 256):
     print("[ddi] Starting DDI pipeline.")
-    samples = list(load_preprocessed("xlwsd", split="validation"))
+    train_samples = list(load_preprocessed("xlwsd", split="train"))
+    val_samples = list(load_preprocessed("xlwsd", split="validation"))
+    samples = train_samples + val_samples
     print(f"[ddi] Loaded {len(samples)} samples; starting forward pass with batch size {batch_size}.")
     model = load_model(model_name, device=device)
     extractor = HiddenStateExtractor(model, batch_size=batch_size, to_cpu=True)
