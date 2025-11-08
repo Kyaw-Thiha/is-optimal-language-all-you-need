@@ -3,6 +3,7 @@ from typing import Dict, List, Optional, Tuple, cast
 
 import numpy as np
 import torch
+from sklearn.model_selection import train_test_split
 from tqdm import tqdm
 
 from src.datahub.loader import load_preprocessed
@@ -103,12 +104,26 @@ def run_ddi_xlwsd(model_name: ModelKey, device: str = "cuda:0", batch_size: int 
             print(f"[ddi] Skipping {language}/{lemma}: only one sense present in validation split.")
             continue
 
+        try:
+            train_idx, test_idx = train_test_split(
+                np.arange(len(labels)),
+                test_size=0.2,
+                random_state=42,
+                stratify=labels if unique_labels.size > 1 else None,
+            )
+        except ValueError:
+            print(f"[ddi] Skipping {language}/{lemma}: not enough samples for a test split.")
+            continue
+
         for layer_idx, features_tensor in enumerate(layer_features):
             features = features_tensor.numpy()
+            X_train, X_test = features[train_idx], features[test_idx]
+            y_train, y_test = labels[train_idx], labels[test_idx]
+
             probe = LinearLogisticProbe(LinearLogisticProbeConfig(max_iter=200))
-            probe.fit(features, labels)
-            predicted = probe.predict(features)
-            accuracy = float((predicted == labels).mean())
+            probe.fit(X_train, y_train)
+            predicted = probe.predict(X_test)
+            accuracy = float((predicted == y_test).mean())
             lemma_scores[layer_idx] = accuracy
 
         lemma_traces[language][lemma] = lemma_scores
