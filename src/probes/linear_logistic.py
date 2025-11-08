@@ -7,6 +7,7 @@ from typing import Dict, Optional, Union
 
 import numpy as np
 from sklearn.linear_model import LogisticRegression
+from sklearn.preprocessing import StandardScaler
 
 from .base import ArrayLike, BaseProbe, LabelLike, WeightsLike
 from .helpers import ensure_1d_array, ensure_2d_array, ensure_sample_weights
@@ -49,6 +50,9 @@ class LinearLogisticProbe(BaseProbe):
 
         weights = ensure_sample_weights(sample_weights, X.shape[0])
 
+        scaler = StandardScaler()
+        X_scaled = scaler.fit_transform(X)
+
         kwargs = dict(
             penalty=self.config.penalty,
             C=self.config.C,
@@ -63,14 +67,16 @@ class LinearLogisticProbe(BaseProbe):
         if self.config.multi_class is not None:
             kwargs["multi_class"] = self.config.multi_class
 
+        self.scaler = scaler
         self.model = LogisticRegression(**kwargs)
-        self.model.fit(X, y, sample_weight=weights)
+        self.model.fit(X_scaled, y, sample_weight=weights)
         return self
 
     def predict(self, features: ArrayLike) -> np.ndarray:
         model = self._require_model()
         X = ensure_2d_array(features)
-        return model.predict(X)
+        X_scaled = self.scaler.transform(X)
+        return model.predict(X_scaled)
 
     def predict_proba(self, features: ArrayLike) -> np.ndarray:
         model = self._require_model()
@@ -90,7 +96,7 @@ class LinearLogisticProbe(BaseProbe):
         return model.decision_function(X)
 
     def _require_model(self) -> LogisticRegression:
-        if self.model is None:
+        if self.model is None or not hasattr(self, "scaler"):
             raise RuntimeError("LinearLogisticProbe has not been fitted yet.")
         return self.model
 
