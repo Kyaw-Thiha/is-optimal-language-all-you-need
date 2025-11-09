@@ -1,5 +1,7 @@
+from __future__ import annotations
+
 from collections import defaultdict
-from typing import Dict, List, Optional, Tuple, cast
+from typing import Dict, Iterable, List, Optional, Sequence, Tuple, cast
 
 import numpy as np
 import torch
@@ -16,11 +18,110 @@ from src.metrics.ddi_policy import FixedThresholdPolicy
 from src.metrics.aggregation import LemmaMetricRecord, aggregate_language_scores
 
 LemmaTraces = Dict[str, Dict[str, Dict[int, float]]]  # language -> lemma -> layer -> score
+MAX_SENTENCES_PER_CHUNK = 50_000
+
+
+def process_chunk(
+    extractor: HiddenStateExtractor,
+    language: str,
+    lang_samples: List,
+    chunk_indices: Sequence[int],
+    labels_by_lemma: Dict[Tuple[str, str], np.ndarray],
+    feature_buffers: Dict[Tuple[str, str], List[List[Optional[torch.Tensor]]]],
+    sample_lookup: Dict[int, Tuple[Tuple[str, str], int]],
+    layer_count: Optional[int],
+) -> Optional[int]:
+    """Run a forward pass over a subset of sentences and fill pooling buffers."""
+    chunk_texts = [lang_samples[i].text_a for i in chunk_indices]
+    for batch in extractor.iterate(chunk_texts, desc=f"Forward pass ({language})"):
+        if layer_count is None:
+            layer_count = len(batch.hidden_states)
+            for key, labels in labels_by_lemma.items():
+                feature_buffers[key] = [[None] * len(labels) for _ in range(layer_count)]
+
+        global_indices = [chunk_indices[i] for i in batch.indices]
+        chunk_spans: List[Span] = []
+        for idx in global_indices:
+            span = lang_samples[idx].target_span
+            if span is None:
+                raise ValueError("XL-WSD spans should all be present.")
+            chunk_spans.append(cast(Span, span))
+
+        for layer_idx, layer_tensor in enumerate(batch.hidden_states):
+            pooled = pool_token_embeddings(layer_tensor, chunk_spans, "mean")
+            for local_pos, global_idx in enumerate(global_indices):
+                lemma_key, slot = sample_lookup[global_idx]
+                feature_buffers[lemma_key][layer_idx][slot] = pooled[local_pos]
+    return layer_count
+
+
+def finalize_ready_lemmas(
+    ready_keys: Iterable[Tuple[str, str]],
+    feature_buffers: Dict[Tuple[str, str], List[List[Optional[torch.Tensor]]]],
+    labels_by_lemma: Dict[Tuple[str, str], np.ndarray],
+    lemma_traces: LemmaTraces,
+    records: List[LemmaMetricRecord],
+) -> None:
+    """Probe finished lemmas, record DDI, and free their buffers."""
+    for lemma_key in ready_keys:
+        layer_slots = feature_buffers.get(lemma_key)
+        labels = labels_by_lemma.get(lemma_key)
+        if layer_slots is None or labels is None:
+            continue
+
+        layer_features: List[torch.Tensor] = []
+        for slot_values in layer_slots:
+            if any(value is None for value in slot_values):
+                break
+            layer_features.append(torch.stack(cast(List[torch.Tensor], slot_values), dim=0))
+        else:
+            unique_labels = np.unique(labels)
+            if unique_labels.size < 2:
+                print(f"[ddi] Skipping {lemma_key[0]}/{lemma_key[1]}: only one sense present even after combining splits.")
+            else:
+                try:
+                    train_idx, test_idx = train_test_split(
+                        np.arange(len(labels)),
+                        test_size=0.2,
+                        random_state=42,
+                        stratify=labels,
+                    )
+                except ValueError:
+                    print(f"[ddi] Skipping {lemma_key[0]}/{lemma_key[1]}: not enough samples for a test split.")
+                else:
+                    lemma_scores: Dict[int, float] = {}
+                    for layer_idx, features_tensor in enumerate(layer_features):
+                        features = features_tensor.numpy()
+                        X_train, X_test = features[train_idx], features[test_idx]
+                        y_train, y_test = labels[train_idx], labels[test_idx]
+
+                        probe = LinearLogisticProbe(LinearLogisticProbeConfig(max_iter=1000))
+                        probe.fit(X_train, y_train)
+                        predicted = probe.predict(X_test)
+                        accuracy = float((predicted == y_test).mean())
+                        lemma_scores[layer_idx] = accuracy
+
+                    language, lemma = lemma_key
+                    lemma_traces[language][lemma] = lemma_scores
+
+                    ddi = compute_ddi(lemma_scores, config=DDIConfig(threshold_policy=FixedThresholdPolicy(0.7)))
+                    if ddi.layer is not None:
+                        records.append(
+                            LemmaMetricRecord(
+                                language=language,
+                                lemma=lemma,
+                                metric="ddi",
+                                value=float(ddi.layer),
+                            )
+                        )
+                    print(f"{language}/{lemma} → DDI layer={ddi.layer}")
+
+        feature_buffers.pop(lemma_key, None)
+        labels_by_lemma.pop(lemma_key, None)
 
 
 def run_ddi_xlwsd(model_name: ModelKey, device: str = "cuda:0", batch_size: int = 256):
     print("[ddi] Starting DDI pipeline.")
-    # Combine train + validation so each lemma has enough sense variety.
     train_samples = list(load_preprocessed("xlwsd", split="train"))
     val_samples = list(load_preprocessed("xlwsd", split="validation"))
     samples = train_samples + val_samples
@@ -29,25 +130,21 @@ def run_ddi_xlwsd(model_name: ModelKey, device: str = "cuda:0", batch_size: int 
     extractor = HiddenStateExtractor(model, batch_size=batch_size, to_cpu=True)
 
     lemma_traces: LemmaTraces = defaultdict(lambda: defaultdict(dict))
-    records: list[LemmaMetricRecord] = []
+    records: List[LemmaMetricRecord] = []
     languages = sorted({sample.language for sample in samples})
 
-    # Process one language at a time to keep the pooled tensors small.
     for language in languages:
         lang_samples = [sample for sample in samples if sample.language == language]
         if not lang_samples:
             continue
         print(f"[ddi] Processing language '{language}' with {len(lang_samples)} samples.")
 
-        # ------------------------------------------------------------------
-        # Bucket samples by (language, lemma) within this language.
         buckets: Dict[Tuple[str, str], List[int]] = defaultdict(list)
         for local_idx, sample in enumerate(lang_samples):
             buckets[(sample.language, sample.lemma)].append(local_idx)
         if not buckets:
             continue
 
-        # Prepare label storage and sample index lookup for this language.
         labels_by_lemma: Dict[Tuple[str, str], np.ndarray] = {}
         feature_buffers: Dict[Tuple[str, str], List[List[Optional[torch.Tensor]]]] = {}
         sample_lookup: Dict[int, Tuple[Tuple[str, str], int]] = {}
@@ -66,93 +163,52 @@ def run_ddi_xlwsd(model_name: ModelKey, device: str = "cuda:0", batch_size: int 
             for pos, local_sample_idx in enumerate(indices):
                 sample_lookup[local_sample_idx] = (key, pos)
 
-        texts = [sample.text_a for sample in lang_samples]
-        layer_count: int | None = None
+        layer_count: Optional[int] = None
 
-        # ------------------------------------------------------------------
-        # Stream batches for this language so only local tensors stay in memory.
-        for chunk in extractor.iterate(texts, desc=f"Forward pass ({language})"):
+        if len(lang_samples) > MAX_SENTENCES_PER_CHUNK:
+            all_idx = np.arange(len(lang_samples))
+            for start in range(0, len(lang_samples), MAX_SENTENCES_PER_CHUNK):
+                chunk_idx = list(all_idx[start : start + MAX_SENTENCES_PER_CHUNK])
+                layer_count = process_chunk(
+                    extractor,
+                    language,
+                    lang_samples,
+                    chunk_idx,
+                    labels_by_lemma,
+                    feature_buffers,
+                    sample_lookup,
+                    layer_count,
+                )
+                ready = [
+                    key
+                    for key, layer_slots in feature_buffers.items()
+                    if all(all(tensor is not None for tensor in slot) for slot in layer_slots)
+                ]
+                finalize_ready_lemmas(ready, feature_buffers, labels_by_lemma, lemma_traces, records)
             if layer_count is None:
-                layer_count = len(chunk.hidden_states)
-                print(f"[ddi] Forward pass complete for {language}; streaming features across {layer_count} layers.")
-                for key, labels in labels_by_lemma.items():
-                    length = len(labels)
-                    feature_buffers[key] = [[None] * length for _ in range(layer_count)]
+                print(f"[ddi] Skipping language '{language}': no layers extracted.")
+                continue
 
-            chunk_spans: List[Span] = []
-            for idx in chunk.indices:
-                span = lang_samples[idx].target_span
-                if span is None:
-                    raise ValueError("XL-WSD spans should all be present.")
-                chunk_spans.append(cast(Span, span))
+            remaining = list(feature_buffers.keys())
+            finalize_ready_lemmas(remaining, feature_buffers, labels_by_lemma, lemma_traces, records)
+            continue
 
-            for layer_idx, layer_tensor in enumerate(chunk.hidden_states):
-                pooled = pool_token_embeddings(layer_tensor, chunk_spans, "mean")
-                for local_pos, local_sample_idx in enumerate(chunk.indices):
-                    lemma_key, slot = sample_lookup[local_sample_idx]
-                    feature_buffers[lemma_key][layer_idx][slot] = pooled[local_pos]
-
+        layer_count = process_chunk(
+            extractor,
+            language,
+            lang_samples,
+            list(range(len(lang_samples))),
+            labels_by_lemma,
+            feature_buffers,
+            sample_lookup,
+            layer_count,
+        )
         if layer_count is None:
             print(f"[ddi] Skipping language '{language}': no layers extracted.")
             continue
 
-        features_by_lemma: Dict[Tuple[str, str], List[torch.Tensor]] = {}
-        for key, layer_slots in feature_buffers.items():
-            stacked_layers = []
-            for layer_idx, slot_values in enumerate(layer_slots):
-                if any(value is None for value in slot_values):
-                    raise RuntimeError(f"Missing pooled features for {key} layer {layer_idx}.")
-                stacked_layers.append(torch.stack(cast(List[torch.Tensor], slot_values), dim=0))
-            features_by_lemma[key] = stacked_layers
-
-        # ------------------------------------------------------------------
-        # Probe each lemma in this language with a held-out split.
-        for (language_key, lemma), labels in tqdm(labels_by_lemma.items(), desc=f"Probing lemmas ({language})"):
-            layer_features = features_by_lemma[(language_key, lemma)]
-            lemma_scores: Dict[int, float] = {}
-
-            unique_labels = np.unique(labels)
-            if unique_labels.size < 2:
-                print(f"[ddi] Skipping {language_key}/{lemma}: only one sense present even after combining splits.")
-                continue
-
-            # Split lemma samples into train/test so probes evaluate on held-out contexts.
-            try:
-                train_idx, test_idx = train_test_split(
-                    np.arange(len(labels)),
-                    test_size=0.2,
-                    random_state=42,
-                    stratify=labels if unique_labels.size > 1 else None,
-                )
-            except ValueError:
-                print(f"[ddi] Skipping {language_key}/{lemma}: not enough samples for a test split.")
-                continue
-
-            for layer_idx, features_tensor in enumerate(layer_features):
-                # Pool features for this layer and train/test the probe.
-                features = features_tensor.numpy()
-                X_train, X_test = features[train_idx], features[test_idx]
-                y_train, y_test = labels[train_idx], labels[test_idx]
-
-                probe = LinearLogisticProbe(LinearLogisticProbeConfig(max_iter=200))
-                probe.fit(X_train, y_train)
-                predicted = probe.predict(X_test)
-                accuracy = float((predicted == y_test).mean())
-                lemma_scores[layer_idx] = accuracy
-
-            lemma_traces[language_key][lemma] = lemma_scores
-
-            ddi = compute_ddi(lemma_scores, config=DDIConfig(threshold_policy=FixedThresholdPolicy(0.7)))
-            if ddi.layer is not None:
-                records.append(
-                    LemmaMetricRecord(
-                        language=language_key,
-                        lemma=lemma,
-                        metric="ddi",
-                        value=float(ddi.layer),
-                    )
-                )
-            print(f"{language_key}/{lemma} → DDI layer={ddi.layer}")
+        ready = list(feature_buffers.keys())
+        finalize_ready_lemmas(ready, feature_buffers, labels_by_lemma, lemma_traces, records)
 
     print(f"[ddi] Finished probing; collected {len(records)} DDI records. Running aggregation ...")
 
