@@ -3,6 +3,7 @@ A research project quantifying how easily large language models recover the inte
 
 ## Initial Results
 Initial results show strong support for our hypothesis.
+
 English language requires more layers for sense separability, while Japanese require much lower layers for sense separability.
 
 ![Experiment-1](./docs/language_ddi.png)
