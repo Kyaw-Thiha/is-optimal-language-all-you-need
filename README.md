@@ -3,81 +3,70 @@ A research project quantifying how easily large language models recover the inte
 
 ## Initial Results
 Initial results show strong support for our hypothesis.
+English language requires more layers for sense separability, while Japanese require much lower layers for sense separability.
+
 ![Experiment-1](./docs/language_ddi.png)
 
 ## Helpful Commands
 ### Installation
 
 ```shell
-python -m venv .venv
-source .venv/bin/activate
-pip install --upgrade pip
+python -m venv .env
+source .env/bin/activate
+
 pip install -r requirements.txt
 ```
 
-Choose your preferred virtual environment manager (venv, conda, poetry); the above is
-the minimal workflow using Python’s built-in venv.
 
-### Running Commands
+## Running Commands
 
-The CLI lives in `main.py` and uses Typer. Once dependencies are installed, you can
-invoke commands as follows:
-
-```shell
-python main.py datahub --all # download & preprocess datasets
-python main.py infer         # temporary stub; will grow with additional options
-```
-
-Additional commands will be added over time—`python main.py --help` shows the latest
-set.
+The CLI lives in `main.py` and uses Typer. 
 
 ### DataHub Command
+First, download & process the datasets
+```bash
+python main.py datahub --all 
+```
 
-`python main.py datahub` now covers both downloading the corpora and materializing them
-into the unified `SenseSample` schema. Pass `--all` to fetch everything or select
-datasets via dedicated flags:
-
-```shell
+Alternatively,
+```bash
 python main.py datahub --xl-wsd
 python main.py datahub --mcl-wic --mclwic-splits all test-gold
 python main.py datahub --xl-wic --xlwic-config de fr it
 python main.py datahub --all --force
+```
+
+
+### Experiment Running
+```bash
 python main.py ddi-xlwsd --model minilm --plots-root artifacts/plots --plots-tag run-001 --batch-size 128
 ```
 
 `--xlwic-config` accepts lowercase language codes (e.g., `fr`, `de`, `it`) or the special
 value `default` to include every language published in the official XL-WiC release.
-The `ddi-xlwsd` command now supports optional plot-saving flags:
+
+The `ddi-xlwsd` command supports optional plot-saving flags:
 
 - `--plots-root`: folder where figures are written; omit it to display plots interactively.
 - `--plots-tag`: run-specific suffix (defaults to a timestamp) so repeated runs do not overwrite files.
 - `--model`, `--save-static`, `--save-html`: choose the model key and whether to emit PNG/HTML outputs.
 
 Raw caches land in `data/raw/...` (configurable via `--raw-root`) and processed
-artifacts in `data/preprocess/` (configurable via `--processed-root`). SHA256 metadata
-ensures archives are reused unless `--force` is set. XL-WSD still requires that you
-accept the Sapienza/BabelNet license before running the command; MCL-WiC pulls from the
-official SemEval GitHub repo; XL-WiC now comes from the authors’ EMNLP mirror so it
-works offline once the archive is downloaded.
+artifacts in `data/preprocess/` (configurable via `--processed-root`). 
+SHA256 metadata ensures archives are reused unless `--force` is set. 
 
-### Dataset Access
-
-XL-WSD still requires that you accept the Sapienza/BabelNet license before the Google
-Drive mirror (fetched via `gdown`) will download. MCL-WiC is sourced from the official
-SemEval GitHub repository, and XL-WiC is mirrored from the EMNLP release site. None of
-the corpora require Hugging Face authentication anymore; once the archives are cached
-under `data/raw/`, preprocessing works fully offline.
+XL-WSD still requires that you accept the Sapienza/BabelNet license before running the command. 
+MCL-WiC pulls from the official SemEval GitHub repo. 
+XL-WiC now comes from the authors’ EMNLP mirror so it works offline once the archive is downloaded.
 
 ### Tests
 
-The project ships with pytest suites for the data hub and model runners. Execute them
-after installation:
+The project ships with pytest suites for the data hub and model runners. 
 
 ```shell
 pytest
 ```
 
-Tests run offline thanks to local fixtures and parser-specific stubs.
 
 ## Project Layout
 
