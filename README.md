@@ -1,6 +1,10 @@
 # Is Optimal Language All You Need?
 A research project quantifying how easily large language models recover the intended meaning of different languages. 
 
+## Initial Results
+Initial results show strong support for our hypothesis.
+![Experiment-1](./docs/language_ddi.png)
+
 ## Helpful Commands
 ### Installation
 
