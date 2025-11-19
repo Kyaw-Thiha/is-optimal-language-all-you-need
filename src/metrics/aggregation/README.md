@@ -1,6 +1,8 @@
 # Hierarchical Pooling Overview
 
-Hierarchical pooling gives us a way to turn noisy lemma-level measurements into stable, language-level estimates. Instead of averaging raw scores, we fit a probabilistic model that lets lemmas “share” information: sparse lemmas borrow strength from richer ones, while languages keep their own personality. The end result is a shrinkage-adjusted difficulty score with uncertainty—perfect for comparing languages without overconfidence.
+Hierarchical pooling gives us a way to turn noisy lemma-level measurements into stable, language-level estimates. Instead of averaging raw scores, we fit a probabilistic model that lets lemmas “share” information: sparse lemmas borrow strength from richer ones, while languages keep their own personality. 
+
+Link: [Read More](https://www.pymc.io/projects/examples/en/latest/case_studies/hierarchical_partial_pooling.html)
 
 ## How It Works
 
