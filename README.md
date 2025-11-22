@@ -49,7 +49,7 @@ value `default` to include every language published in the official XL-WiC relea
 The `ddi-xlwsd` command supports optional plot-saving flags:
 
 - `--plots-root`: folder where figures are written; omit it to display plots interactively.
-- --probe: name of the probe. (`logistic-regression`, `random-forest`)
+- `--probe`: name of the probe. (`logistic-regression`, `random-forest`)
 - `--plots-tag`: run-specific suffix (defaults to a timestamp) so repeated runs do not overwrite files.
 - `--model`, `--save-static`, `--save-html`: choose the model key and whether to emit PNG/HTML outputs.
 
