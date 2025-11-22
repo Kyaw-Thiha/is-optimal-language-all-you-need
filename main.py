@@ -77,6 +77,11 @@ def datahub(
 @app.command()
 def ddi_xlwsd(
     model_name: ModelKey = typer.Option("minilm", "--model", help="Model key to evaluate."),
+    probe_name: str = typer.Option(
+        "linear-logistic",
+        "--probe",
+        help="Probe to use (e.g. linear-logistic, random-forest).",
+    ),
     plots_root: Optional[Path] = typer.Option(
         None,
         "--plots-root",
@@ -91,7 +96,7 @@ def ddi_xlwsd(
     save_html: bool = typer.Option(True, help="Write interactive HTML plots when saving."),
     batch_size: int = typer.Option(256, "--batch-size", help="Batch size for model forward passes."),
 ):
-    summaries, lemma_traces, records = run_ddi_xlwsd(model_name, batch_size=batch_size)
+    summaries, lemma_traces, records = run_ddi_xlwsd(model_name, batch_size=batch_size, probe_name=probe_name)
 
     save_config: Optional[PlotSaveConfig] = None
     if plots_root:

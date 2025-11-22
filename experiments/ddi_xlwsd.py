@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from typing import Dict, List, Tuple, cast
+from typing import Callable, Dict, List, Tuple, cast
 
 import numpy as np
 import torch
@@ -12,13 +12,21 @@ from src.models import load_model, ModelKey
 from src.models.extraction import HiddenStateExtractor
 from src.embeddings.token import Span
 from src.pipelines import BucketKey, build_bucket_plan, run_chunked_forward
+from src.probes.base import BaseProbe
 from src.probes.linear_logistic import LinearLogisticProbe, LinearLogisticProbeConfig
+from src.probes.random_forest import RandomForestProbe, RandomForestConfig
 from src.metrics.ddi import compute_ddi, DDIConfig
 from src.metrics.ddi_policy import FixedThresholdPolicy
 from src.metrics.aggregation import LemmaMetricRecord, aggregate_language_scores
 
 LemmaTraces = Dict[str, Dict[str, Dict[int, float]]]  # language -> lemma -> layer -> score
 MAX_SENTENCES_PER_CHUNK = 50_000
+ProbeFactory = Callable[[], BaseProbe]
+
+PROBE_FACTORIES: Dict[str, ProbeFactory] = {
+    "logistic-regression": lambda: LinearLogisticProbe(LinearLogisticProbeConfig(max_iter=1000)),
+    "random-forest": lambda: RandomForestProbe(RandomForestConfig()),
+}
 
 
 def handle_ready_lemma(
@@ -27,6 +35,7 @@ def handle_ready_lemma(
     labels_by_lemma: Dict[BucketKey, np.ndarray],
     lemma_traces: LemmaTraces,
     records: List[LemmaMetricRecord],
+    probe_factory: ProbeFactory,
 ) -> None:
     """Probe a finished lemma bucket and record the DDI summary."""
     labels = labels_by_lemma.pop(lemma_key, None)
@@ -55,7 +64,7 @@ def handle_ready_lemma(
         X_train, X_test = features[train_idx], features[test_idx]
         y_train, y_test = labels[train_idx], labels[test_idx]
 
-        probe = LinearLogisticProbe(LinearLogisticProbeConfig(max_iter=1000))
+        probe = probe_factory()
         probe.fit(X_train, y_train)
         predicted = probe.predict(X_test)
         accuracy = float((predicted == y_test).mean())
@@ -77,8 +86,20 @@ def handle_ready_lemma(
     print(f"{language}/{lemma} → DDI layer={ddi.layer}")
 
 
-def run_ddi_xlwsd(model_name: ModelKey, device: str = "cuda:0", batch_size: int = 256):
+def run_ddi_xlwsd(
+    model_name: ModelKey,
+    device: str = "cuda:0",
+    batch_size: int = 256,
+    probe_name: str = "linear-logistic",
+):
     print("[ddi] Starting DDI pipeline.")
+
+    # Choosing the probe
+    try:
+        probe_factory = PROBE_FACTORIES[probe_name]
+    except KeyError as exc:
+        raise ValueError(f"Unsupported probe '{probe_name}'. Available probes: {', '.join(PROBE_FACTORIES)}.") from exc
+
     train_samples = list(load_preprocessed("xlwsd", split="train"))
     val_samples = list(load_preprocessed("xlwsd", split="validation"))
     samples = train_samples + val_samples
@@ -123,7 +144,14 @@ def run_ddi_xlwsd(model_name: ModelKey, device: str = "cuda:0", batch_size: int 
 
         def on_ready(lemma_key: BucketKey, layer_tensors: List[torch.Tensor]) -> None:
             # Callback invoked by run_chunked_forward every time a lemma bucket is full.
-            handle_ready_lemma(lemma_key, layer_tensors, labels_by_lemma, lemma_traces, records)
+            handle_ready_lemma(
+                lemma_key,
+                layer_tensors,
+                labels_by_lemma,
+                lemma_traces,
+                records,
+                probe_factory=probe_factory,
+            )
 
         run_chunked_forward(
             extractor,

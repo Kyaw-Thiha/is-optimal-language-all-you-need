@@ -40,7 +40,7 @@ python main.py datahub --all --force
 
 ### Experiment Running
 ```bash
-python main.py ddi-xlwsd --model minilm --plots-root artifacts/plots --plots-tag run-001 --batch-size 128
+python main.py ddi-xlwsd --model minilm --probe logistic-regression --plots-root artifacts/plots --plots-tag run-001 --batch-size 128
 ```
 
 `--xlwic-config` accepts lowercase language codes (e.g., `fr`, `de`, `it`) or the special
@@ -49,6 +49,7 @@ value `default` to include every language published in the official XL-WiC relea
 The `ddi-xlwsd` command supports optional plot-saving flags:
 
 - `--plots-root`: folder where figures are written; omit it to display plots interactively.
+- --probe: name of the probe. (`logistic-regression`, `random-forest`)
 - `--plots-tag`: run-specific suffix (defaults to a timestamp) so repeated runs do not overwrite files.
 - `--model`, `--save-static`, `--save-html`: choose the model key and whether to emit PNG/HTML outputs.
 
