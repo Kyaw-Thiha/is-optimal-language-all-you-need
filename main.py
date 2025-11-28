@@ -80,7 +80,7 @@ def ddi_xlwsd(
     probe_name: str = typer.Option(
         "linear-logistic",
         "--probe",
-        help="Probe to use (e.g. linear-logistic, random-forest).",
+        help="Probe to use (e.g. linear-logistic, random-forest, mlp).",
     ),
     plots_root: Optional[Path] = typer.Option(
         None,

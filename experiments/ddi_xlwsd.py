@@ -15,6 +15,7 @@ from src.pipelines import BucketKey, build_bucket_plan, run_chunked_forward
 from src.probes.base import BaseProbe
 from src.probes.linear_logistic import LinearLogisticProbe, LinearLogisticProbeConfig
 from src.probes.random_forest import RandomForestProbe, RandomForestConfig
+from src.probes.mlp import MLPProbe, MLPProbeConfig
 from src.metrics.ddi import compute_ddi, DDIConfig
 from src.metrics.ddi_policy import FixedThresholdPolicy
 from src.metrics.aggregation import LemmaMetricRecord, aggregate_language_scores
@@ -26,6 +27,7 @@ ProbeFactory = Callable[[], BaseProbe]
 PROBE_FACTORIES: Dict[str, ProbeFactory] = {
     "logistic-regression": lambda: LinearLogisticProbe(LinearLogisticProbeConfig(max_iter=1000)),
     "random-forest": lambda: RandomForestProbe(RandomForestConfig()),
+    "mlp": lambda: MLPProbe(MLPProbeConfig()),
 }
 
 
