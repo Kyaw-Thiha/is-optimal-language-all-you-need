@@ -49,9 +49,10 @@ value `default` to include every language published in the official XL-WiC relea
 The `ddi-xlwsd` command supports optional plot-saving flags:
 
 - `--plots-root`: folder where figures are written; omit it to display plots interactively.
-- `--probe`: name of the probe. (`logistic-regression`, `random-forest`)
+- `--probe`: name of the probe. (`logistic-regression`, `random-forest`, `mlp`)
 - `--plots-tag`: run-specific suffix (defaults to a timestamp) so repeated runs do not overwrite files.
-- `--model`, `--save-static`, `--save-html`: choose the model key and whether to emit PNG/HTML outputs.
+- `--model`: choose the model key
+- `--save-static`, `--save-html`: choose whether to emit PNG/HTML outputs.
 
 Raw caches land in `data/raw/...` (configurable via `--raw-root`) and processed
 artifacts in `data/preprocess/` (configurable via `--processed-root`). 
@@ -60,6 +61,12 @@ SHA256 metadata ensures archives are reused unless `--force` is set.
 XL-WSD still requires that you accept the Sapienza/BabelNet license before running the command. 
 MCL-WiC pulls from the official SemEval GitHub repo. 
 XL-WiC now comes from the authors’ EMNLP mirror so it works offline once the archive is downloaded.
+
+### Hyper-Parameter Tuning
+```bash
+python main.py ddi-xlwsd --model minilm --probe random-forest --tune-probe --tuning-trials 20 --batch-size 128
+```
+Right now, the tuning only works for random-forest model.
 
 ### Tests
 
