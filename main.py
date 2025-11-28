@@ -82,6 +82,16 @@ def ddi_xlwsd(
         "--probe",
         help="Probe to use (e.g. linear-logistic, random-forest, mlp).",
     ),
+    tune_probe: bool = typer.Option(
+        False,
+        "--tune-probe",
+        help="Enable Optuna tuning (currently only supported for random-forest).",
+    ),
+    tuning_trials: int = typer.Option(
+        25,
+        "--tuning-trials",
+        help="Number of Optuna trials when --tune-probe is set.",
+    ),
     plots_root: Optional[Path] = typer.Option(
         None,
         "--plots-root",
@@ -96,7 +106,13 @@ def ddi_xlwsd(
     save_html: bool = typer.Option(True, help="Write interactive HTML plots when saving."),
     batch_size: int = typer.Option(256, "--batch-size", help="Batch size for model forward passes."),
 ):
-    summaries, lemma_traces, records = run_ddi_xlwsd(model_name, batch_size=batch_size, probe_name=probe_name)
+    summaries, lemma_traces, records = run_ddi_xlwsd(
+        model_name,
+        batch_size=batch_size,
+        probe_name=probe_name,
+        tune_probe=tune_probe,
+        tuning_trials=tuning_trials,
+    )
 
     save_config: Optional[PlotSaveConfig] = None
     if plots_root:

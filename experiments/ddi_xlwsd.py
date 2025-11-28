@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from typing import Callable, Dict, List, Tuple, cast
+from typing import Callable, Dict, List, Optional, Tuple, cast
 
 import numpy as np
 import torch
@@ -16,6 +16,8 @@ from src.probes.base import BaseProbe
 from src.probes.linear_logistic import LinearLogisticProbe, LinearLogisticProbeConfig
 from src.probes.random_forest import RandomForestProbe, RandomForestConfig
 from src.probes.mlp import MLPProbe, MLPProbeConfig
+from src.probes.random_forest_tuner import RandomForestOptunaTuner, RandomForestTuningConfig
+from src.probes.tuning import ProbeTuner
 from src.metrics.ddi import compute_ddi, DDIConfig
 from src.metrics.ddi_policy import FixedThresholdPolicy
 from src.metrics.aggregation import LemmaMetricRecord, aggregate_language_scores
@@ -23,11 +25,19 @@ from src.metrics.aggregation import LemmaMetricRecord, aggregate_language_scores
 LemmaTraces = Dict[str, Dict[str, Dict[int, float]]]  # language -> lemma -> layer -> score
 MAX_SENTENCES_PER_CHUNK = 50_000
 ProbeFactory = Callable[[], BaseProbe]
+ProbeTunerFactory = Callable[[int], ProbeTuner]
 
 PROBE_FACTORIES: Dict[str, ProbeFactory] = {
     "logistic-regression": lambda: LinearLogisticProbe(LinearLogisticProbeConfig(max_iter=1000)),
     "random-forest": lambda: RandomForestProbe(RandomForestConfig()),
     "mlp": lambda: MLPProbe(MLPProbeConfig()),
+}
+
+PROBE_TUNERS: Dict[str, ProbeTunerFactory] = {
+    "random-forest": lambda trials: RandomForestOptunaTuner(
+        base_config=RandomForestConfig(),
+        tuning_config=RandomForestTuningConfig(trials=trials),
+    ),
 }
 
 
@@ -38,6 +48,7 @@ def handle_ready_lemma(
     lemma_traces: LemmaTraces,
     records: List[LemmaMetricRecord],
     probe_factory: ProbeFactory,
+    probe_tuner: Optional[ProbeTuner],
 ) -> None:
     """Probe a finished lemma bucket and record the DDI summary."""
     labels = labels_by_lemma.pop(lemma_key, None)
@@ -66,7 +77,11 @@ def handle_ready_lemma(
         X_train, X_test = features[train_idx], features[test_idx]
         y_train, y_test = labels[train_idx], labels[test_idx]
 
-        probe = probe_factory()
+        if probe_tuner is not None:
+            probe_tuner.tune(X_train, y_train)
+            probe = probe_tuner.make_probe()
+        else:
+            probe = probe_factory()
         probe.fit(X_train, y_train)
         predicted = probe.predict(X_test)
         accuracy = float((predicted == y_test).mean())
@@ -93,6 +108,8 @@ def run_ddi_xlwsd(
     device: str = "cuda:0",
     batch_size: int = 256,
     probe_name: str = "linear-logistic",
+    tune_probe: bool = False,
+    tuning_trials: int = 25,
 ):
     print("[ddi] Starting DDI pipeline.")
 
@@ -101,6 +118,13 @@ def run_ddi_xlwsd(
         probe_factory = PROBE_FACTORIES[probe_name]
     except KeyError as exc:
         raise ValueError(f"Unsupported probe '{probe_name}'. Available probes: {', '.join(PROBE_FACTORIES)}.") from exc
+
+    probe_tuner: Optional[ProbeTuner] = None
+    if tune_probe:
+        tuner_factory = PROBE_TUNERS.get(probe_name)
+        if tuner_factory is None:
+            raise ValueError(f"Tuning is not supported for probe '{probe_name}'.")
+        probe_tuner = tuner_factory(tuning_trials)
 
     train_samples = list(load_preprocessed("xlwsd", split="train"))
     val_samples = list(load_preprocessed("xlwsd", split="validation"))
@@ -153,6 +177,7 @@ def run_ddi_xlwsd(
                 lemma_traces,
                 records,
                 probe_factory=probe_factory,
+                probe_tuner=probe_tuner,
             )
 
         run_chunked_forward(
