@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Optional, Tuple
 
 import numpy as np
@@ -21,6 +23,7 @@ class RandomForestTuningConfig:
     random_seed: int = 42
     validation_size: float = 0.2
     subsample: int = 2000  # cap tuning cost on huge buckets
+    export_path: Optional[str] = None
 
 
 class RandomForestOptunaTuner(ProbeTuner):
@@ -50,6 +53,7 @@ class RandomForestOptunaTuner(ProbeTuner):
         self._study.optimize(lambda trial: self._objective(trial, X, y), n_trials=self.tuning_config.trials)
 
         params = self._study.best_params
+        best_value = self._study.best_value
         self._best_config = RandomForestConfig(
             n_estimators=params["n_estimators"],
             max_depth=params["max_depth"],
@@ -60,6 +64,7 @@ class RandomForestOptunaTuner(ProbeTuner):
             n_jobs=self.base_config.n_jobs,
             random_state=self.base_config.random_state,
         )
+        self._export_best_params(params, best_value)
 
     def make_probe(self) -> RandomForestProbe:
         config = self._best_config or self.base_config
@@ -96,3 +101,14 @@ class RandomForestOptunaTuner(ProbeTuner):
         rng = np.random.default_rng(self.tuning_config.random_seed)
         idx = rng.choice(features.shape[0], size=self.tuning_config.subsample, replace=False)
         return features[idx], labels[idx]
+
+    def _export_best_params(self, params: dict, score: float) -> None:
+        export_path = self.tuning_config.export_path
+        if export_path is None:
+            return
+
+        path = Path(export_path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+
+        payload = {"best_value": score, "params": params}
+        path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
