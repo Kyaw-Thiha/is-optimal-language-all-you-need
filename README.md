@@ -18,6 +18,15 @@ source .env/bin/activate
 pip install -r requirements.txt
 ```
 
+#### On Windows Machines:
+You might need to run 
+```shell
+py -m venv .env
+./.env/Scripts/Activate.ps1
+```
+***Note***, if you have a Windows machine with Nvidia GPU, you should download ```Pytorch``` with cuda support   
+So, if you already ran ```pip install -r requirements.txt```, consider running ```pip uninstall pytorch```     
+Then, run ```pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118``` depending on your cuda version (here is cuda 11.8)
 
 ## Running Commands
 
