@@ -36,7 +36,10 @@ PROBE_FACTORIES: Dict[str, ProbeFactory] = {
 PROBE_TUNERS: Dict[str, ProbeTunerFactory] = {
     "random-forest": lambda trials: RandomForestOptunaTuner(
         base_config=RandomForestConfig(),
-        tuning_config=RandomForestTuningConfig(trials=trials),
+        tuning_config=RandomForestTuningConfig(
+            trials=trials,
+            export_path="artifacts/random_forest_best_params.json",
+        ),
     ),
 }
 
